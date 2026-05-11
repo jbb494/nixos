@@ -1,0 +1,11 @@
+xkb_types "capsnumber" {
+  type "CAPS_NUMBERS" {
+      modifiers = Shift + Lock;
+      map[None] = Level1;
+      map[Shift] = Level2;
+      map[Shift+Lock] = Level2;
+      map[Lock] = Level2;
+      level_name[Level1] = "Base";
+      level_name[Level2] = "Shift";
+  };
+};
