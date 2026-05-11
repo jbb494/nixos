@@ -2,6 +2,25 @@
 
 Declarative NixOS configuration for the Slimbook EVO15-AI9-STP laptop.
 
+## Prepare Installer USB
+
+From the current Linux system:
+
+1. Download the graphical NixOS installer ISO from `https://channels.nixos.org/nixos-25.11/latest-nixos-graphical-x86_64-linux.iso`.
+2. Identify the USB disk with `lsblk`; use the whole disk path, for example `/dev/sdX`, not a partition like `/dev/sdX1`.
+3. Unmount any mounted USB partitions.
+4. Write the ISO to the USB disk.
+5. Reboot and select the USB device from the firmware boot menu.
+
+Example write command:
+
+```sh
+sudo dd if=nixos-graphical.iso of=/dev/sdX bs=4M status=progress conv=fsync
+sync
+```
+
+This wipes the selected USB disk.
+
 ## Installer Flow
 
 Boot the graphical NixOS installer USB, connect networking, then run:
