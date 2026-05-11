@@ -2,6 +2,7 @@
 , coreutils
 , diskoPackage
 , gnugrep
+, nixosInstallTools
 , util-linux
 }:
 
@@ -12,6 +13,7 @@ writeShellApplication {
     coreutils
     diskoPackage
     gnugrep
+    nixosInstallTools
     util-linux
   ];
 
@@ -51,18 +53,26 @@ writeShellApplication {
       exit 1
     fi
 
+    echo
+    echo "Disk encryption passphrase:"
+    echo "  disko/cryptsetup will ask for the LUKS passphrase during formatting."
+    echo "  Use the plain Spanish keyboard mapping used by 'loadkeys es'."
+    echo
     echo "Starting disko-install using ''${flake_ref}"
     disko-install \
       --write-efi-boot-entries \
       --flake "''${flake_ref}" \
       --disk main "''${disk}"
 
-    if mountpoint -q /mnt; then
-      echo
-      echo "Installation finished. Setting the jbellavista password inside /mnt."
-      echo "If this step fails, boot once with the temporary password 'nixos' and run passwd."
-      nixos-enter --root /mnt --command "passwd jbellavista" || true
+    if ! mountpoint -q /mnt; then
+      echo "Installation did not leave /mnt mounted; cannot set the user password." >&2
+      exit 1
     fi
+
+    echo
+    echo "Set the login and sudo password for jbellavista now."
+    echo "This password is written to the installed system and is not stored in Git."
+    nixos-enter --root /mnt --command "passwd jbellavista"
 
     echo
     echo "Reboot when ready. Keep the installer USB nearby for the first boot."

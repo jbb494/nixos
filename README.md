@@ -14,6 +14,12 @@ sudo nix --experimental-features "nix-command flakes" run github:jbb494/nixos#in
 
 The installer command is intentionally guarded. It refuses to continue unless the target disk looks like the EVO15 SSD and you type `INSTALL-EVO15`.
 
+During install:
+
+- `disko`/`cryptsetup` asks interactively for the disk encryption passphrase.
+- The installer asks interactively for the `jbellavista` login/sudo password after NixOS is installed under `/mnt`.
+- Passwords are not stored in this repository.
+
 ## Disk Layout
 
 - `/boot`: 1 GiB EFI system partition.

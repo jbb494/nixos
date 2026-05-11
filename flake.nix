@@ -46,6 +46,7 @@
         inherit xkeyboardConfigErgodox;
         install-evo15 = pkgs.callPackage ./apps/install-evo15.nix {
           diskoPackage = disko.packages.${system}.disko;
+          nixosInstallTools = pkgs.nixos-install-tools;
         };
       };
 

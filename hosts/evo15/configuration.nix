@@ -15,12 +15,12 @@
 
   networking.hostName = "evo15";
 
-  users.users.root.initialPassword = "nixos";
+  # Passwords are set interactively by the installer; keep secrets out of Git.
+  users.mutableUsers = true;
   users.users.jbellavista = {
     isNormalUser = true;
     description = "Joan Bellavista";
     shell = pkgs.zsh;
-    initialPassword = "nixos";
     extraGroups = [
       "audio"
       "docker"
