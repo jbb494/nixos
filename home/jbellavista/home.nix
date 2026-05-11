@@ -83,9 +83,19 @@
 
   programs.git = {
     enable = true;
+    includes = [
+      {
+        condition = "gitdir:~/personal/";
+        contents.user = {
+          name = "Joan Bellavista Bartroli";
+          email = "jbb494@gmail.com";
+        };
+      }
+    ];
     settings = {
       branch.sort = "-committerdate";
       column.ui = "auto";
+      user.name = "Joan Bellavista Bartroli";
       diff = {
         algorithm = "histogram";
         colorMoved = "plain";
@@ -108,6 +118,17 @@
         enabled = true;
       };
       tag.sort = "version:refname";
+    };
+  };
+
+  programs.ssh = {
+    enable = true;
+    enableDefaultConfig = false;
+    matchBlocks."github.com-personal" = {
+      hostname = "github.com";
+      user = "git";
+      identityFile = "~/.ssh/id_ed25519_personal";
+      identitiesOnly = true;
     };
   };
 
@@ -241,10 +262,6 @@
       recursive_submodules = true
       full_path = true
       session_sort_order = "LastAttached"
-
-      [[search_dirs]]
-      path = "~/work"
-      depth = 2
 
       [[search_dirs]]
       path = "~/personal"

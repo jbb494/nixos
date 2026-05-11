@@ -20,6 +20,17 @@ During install:
 - The installer asks interactively for the `jbellavista` login/sudo password after NixOS is installed under `/mnt`.
 - Passwords are not stored in this repository.
 
+## Post-Install Checklist
+
+- Reboot into the installed system and unlock LUKS with the passphrase chosen during install.
+- Log in as `jbellavista` with the password chosen during install.
+- Restore the personal SSH private key to `~/.ssh/id_ed25519_personal`; do not commit private keys to this repository.
+- Ensure SSH key permissions are strict: `chmod 700 ~/.ssh` and `chmod 600 ~/.ssh/id_ed25519_personal`.
+- Verify the personal GitHub SSH alias: `ssh -T github.com-personal`.
+- Verify personal Git identity selection in `~/personal` repositories: `git config --show-origin user.email`.
+- Add any non-personal Git/SSH identities locally after install; keep those out of this public repository.
+- Run `hyprctl devices` and update the Ergodox per-device match if the device name differs.
+
 ## Disk Layout
 
 - `/boot`: 1 GiB EFI system partition.
