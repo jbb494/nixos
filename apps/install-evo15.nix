@@ -45,10 +45,10 @@ writeShellApplication {
     fi
 
     echo "This will destroy all data on ''${disk}, create LUKS encryption, and install NixOS."
-    printf "Type INSTALL-EVO15 to continue: "
+    printf "Continue? [y/N] "
     read -r confirmation
 
-    if [[ "''${confirmation}" != "INSTALL-EVO15" ]]; then
+    if [[ ! "''${confirmation}" =~ ^[Yy]$ ]]; then
       echo "Cancelled."
       exit 1
     fi

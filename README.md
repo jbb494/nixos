@@ -12,7 +12,7 @@ nmtui
 sudo nix --experimental-features "nix-command flakes" run github:jbb494/nixos#install-evo15
 ```
 
-The installer command is intentionally guarded. It refuses to continue unless the target disk looks like the EVO15 SSD and you type `INSTALL-EVO15`.
+The installer command is intentionally guarded. It refuses to continue unless the target disk looks like the EVO15 SSD and you confirm the destructive install prompt.
 
 During install:
 
