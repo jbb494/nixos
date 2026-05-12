@@ -52,6 +52,8 @@ in
         kb_options = "grp:alt_shift_toggle";
         follow_mouse = 0;
         touchpad.natural_scroll = true;
+        # Resolve binds against the active keyboard's layout, not the first one.
+        resolve_binds_by_sym = true;
       };
 
       device = [
