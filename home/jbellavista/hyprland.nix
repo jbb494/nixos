@@ -169,7 +169,7 @@ in
       bar = {
         layouts."*" = {
           left = [ "dashboard" "workspaces" ];
-          middle = [ "windowtitle" ];
+          middle = [ ];
           right = [ "cpu" "ram" "volume" "network" "bluetooth" "battery" "systray" "clock" "notifications" ];
         };
         launcher.icon = "";
@@ -188,11 +188,6 @@ in
         workspaces = {
           show_numbered = true;
           show_icons = false;
-        };
-        windowtitle = {
-          icon = false;
-          truncation = true;
-          truncation_size = 70;
         };
       };
       theme = {

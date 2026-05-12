@@ -5,6 +5,30 @@
 }:
 
 let
+  screenshot-full = pkgs.writeShellApplication {
+    name = "screenshot-full";
+    runtimeInputs = with pkgs; [
+      grim
+      swappy
+    ];
+    text = ''
+      grim - | swappy -f -
+    '';
+  };
+
+  screenshot-region = pkgs.writeShellApplication {
+    name = "screenshot-region";
+    runtimeInputs = with pkgs; [
+      grim
+      slurp
+      swappy
+    ];
+    text = ''
+      geometry="$(slurp)"
+      grim -g "$geometry" - | swappy -f -
+    '';
+  };
+
   hypr-summon = pkgs.writeShellApplication {
     name = "hypr-summon";
     runtimeInputs = with pkgs; [
@@ -117,6 +141,7 @@ in
       kubectl
       lua-language-server
       nodejs_22
+      obs-studio
       opencode
       networkmanagerapplet
       pavucontrol
@@ -133,7 +158,11 @@ in
       vscode-langservers-extracted
       wl-clipboard
     ]
-    ++ [ hypr-summon ]
+    ++ [
+      hypr-summon
+      screenshot-full
+      screenshot-region
+    ]
     ++ lib.optional (pkgs ? mise) pkgs.mise
     ++ lib.optional (pkgs ? skaffold) pkgs.skaffold
     ++ lib.optional (pkgs ? tmux-sessionizer) pkgs.tmux-sessionizer;
@@ -269,8 +298,8 @@ in
     syntaxHighlighting.enable = true;
     initContent = ''
       bindkey -v
-      bindkey -M viins '^P' up-history
-      bindkey -M viins '^N' down-history
+      bindkey -M viins '^P' history-beginning-search-backward
+      bindkey -M viins '^N' history-beginning-search-forward
 
       ${lib.optionalString (pkgs ? mise) ''eval "$(${pkgs.mise}/bin/mise activate zsh)"''}
 
@@ -385,6 +414,34 @@ in
       Type=Application
       Categories=GNOME;GTK;Settings;X-GNOME-NetworkSettings;
       Keywords=Network;Connections;Wi-Fi;Wifi;Ethernet;
+    '';
+
+    "applications/screenshot-full.desktop".text = ''
+      [Desktop Entry]
+      Name=Screenshot Full Screen
+      GenericName=Screenshot Tool
+      Comment=Capture the full screen and edit it in Swappy
+      Exec=${screenshot-full}/bin/screenshot-full
+      Icon=camera-photo
+      StartupNotify=false
+      Terminal=false
+      Type=Application
+      Categories=Utility;Graphics;
+      Keywords=Screenshot;Screen;Capture;Swappy;Grim;
+    '';
+
+    "applications/screenshot-region.desktop".text = ''
+      [Desktop Entry]
+      Name=Screenshot Region
+      GenericName=Screenshot Tool
+      Comment=Select a screen region and edit it in Swappy
+      Exec=${screenshot-region}/bin/screenshot-region
+      Icon=camera-photo
+      StartupNotify=false
+      Terminal=false
+      Type=Application
+      Categories=Utility;Graphics;
+      Keywords=Screenshot;Screen;Capture;Region;Swappy;Grim;Slurp;
     '';
   };
 
