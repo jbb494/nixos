@@ -5,13 +5,44 @@ let
   wallpaper = "${pkgs.nixos-artwork.wallpapers.gradient-grey.gnomeFilePath}";
 in
 {
-  home.packages = [ pkgs.hyprpaper ];
+  home.packages = [ pkgs.hyprlock pkgs.hyprpaper ];
 
   xdg.configFile."hypr/hyprpaper.conf".text = ''
     preload = ${wallpaper}
     wallpaper = ,${wallpaper}
     splash = false
     ipc = off
+  '';
+
+  xdg.configFile."hypr/hyprlock.conf".text = ''
+    general {
+      disable_loading_bar = true
+      hide_cursor = true
+    }
+
+    background {
+      monitor =
+      path = screenshot
+      blur_passes = 2
+      blur_size = 6
+    }
+
+    input-field {
+      monitor =
+      size = 240, 52
+      outline_thickness = 2
+      dots_size = 0.25
+      dots_spacing = 0.25
+      dots_center = true
+      outer_color = rgba(ffffff55)
+      inner_color = rgba(111111aa)
+      font_color = rgba(ffffffff)
+      fade_on_empty = false
+      placeholder_text = <i>Password</i>
+      position = 0, -40
+      halign = center
+      valign = center
+    }
   '';
 
   wayland.windowManager.hyprland = {
@@ -89,7 +120,8 @@ in
         "$mod, F, fullscreen"
         "$mod SHIFT, Space, togglefloating"
         "$mod, R, submap, resize"
-        "$mod SHIFT, E, exit"
+        "$mod, E, exec, ${pkgs.hyprlock}/bin/hyprlock"
+        "$mod, period, exit"
         "$mod, F12, exec, hyprctl switchxkblayout all next"
 
         "$mod, H, movefocus, l"
@@ -166,6 +198,8 @@ in
     enable = true;
     systemd.enable = false;
     settings = {
+      wallpaper.enable = false;
+
       bar = {
         layouts."*" = {
           left = [ "dashboard" "workspaces" ];

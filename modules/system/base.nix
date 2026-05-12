@@ -35,6 +35,8 @@
 
   networking.networkmanager.enable = true;
 
+  systemd.services.NetworkManager-wait-online.enable = false;
+
   programs = {
     zsh.enable = true;
     nix-ld.enable = true;
