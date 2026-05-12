@@ -170,7 +170,7 @@ in
         layouts."*" = {
           left = [ "dashboard" "workspaces" ];
           middle = [ "windowtitle" ];
-          right = [ "volume" "network" "bluetooth" "battery" "systray" "clock" "notifications" ];
+          right = [ "cpu" "ram" "volume" "network" "bluetooth" "battery" "systray" "clock" "notifications" ];
         };
         launcher.icon = "";
         volume.label = false;
@@ -197,17 +197,20 @@ in
       };
       theme = {
         bar = {
+          scaling = 85;
           floating = true;
           opacity = 92;
           transparent = false;
           buttons = {
             style = "default";
             monochrome = false;
+            padding_y = "0.1rem";
+            y_margins = "0.25em";
           };
         };
         font = {
           name = "JetBrainsMono Nerd Font";
-          size = "12px";
+          size = "11px";
         };
       };
     };
