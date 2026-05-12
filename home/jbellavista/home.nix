@@ -40,8 +40,6 @@
       pnpm
       python311
       rofi
-      rust-analyzer
-      rustup
       slurp
       stylua
       swappy
