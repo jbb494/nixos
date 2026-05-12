@@ -4,6 +4,80 @@
 , ...
 }:
 
+let
+  hypr-summon = pkgs.writeShellApplication {
+    name = "hypr-summon";
+    runtimeInputs = with pkgs; [
+      coreutils
+      hyprland
+      jq
+    ];
+    text = ''
+      set -euo pipefail
+
+      matcher=""
+      make_float=0
+
+      while [[ $# -gt 0 ]]; do
+        case "$1" in
+          --match)
+            if [[ $# -lt 2 ]]; then
+              printf 'hypr-summon: --match requires a regex\n' >&2
+              exit 2
+            fi
+            matcher="$2"
+            shift 2
+            ;;
+          --float)
+            make_float=1
+            shift
+            ;;
+          --)
+            shift
+            break
+            ;;
+          *)
+            break
+            ;;
+        esac
+      done
+
+      if [[ -z "$matcher" || $# -eq 0 ]]; then
+        printf 'usage: hypr-summon --match REGEX [--float] -- command [args...]\n' >&2
+        exit 2
+      fi
+
+      clients_json="$(hyprctl clients -j 2>/dev/null || printf '[]')"
+      address="$(${pkgs.jq}/bin/jq -r --arg re "$matcher" '
+        map(select(
+          ((.class // "") | test($re; "i")) or
+          ((.initialClass // "") | test($re; "i")) or
+          ((.title // "") | test($re; "i")) or
+          ((.initialTitle // "") | test($re; "i"))
+        ))[0].address // empty
+      ' <<<"$clients_json")"
+
+      if [[ -n "$address" ]]; then
+        workspace="$(hyprctl activeworkspace -j | ${pkgs.jq}/bin/jq -r '.id // empty')"
+        if [[ -n "$workspace" ]]; then
+          hyprctl dispatch movetoworkspace "$workspace,address:$address" >/dev/null
+        fi
+
+        hyprctl dispatch focuswindow "address:$address" >/dev/null
+
+        if [[ "$make_float" == "1" ]]; then
+          hyprctl dispatch setfloating "address:$address" >/dev/null || true
+          hyprctl dispatch centerwindow >/dev/null || true
+        fi
+
+        exit 0
+      fi
+
+      exec "$@"
+    '';
+  };
+in
+
 {
   imports = [
     ./hyprland.nix
@@ -44,6 +118,7 @@
       lua-language-server
       nodejs_22
       opencode
+      networkmanagerapplet
       pavucontrol
       playerctl
       pnpm
@@ -56,9 +131,9 @@
       typescript-language-server
       uv
       vscode-langservers-extracted
-      waybar
       wl-clipboard
     ]
+    ++ [ hypr-summon ]
     ++ lib.optional (pkgs ? mise) pkgs.mise
     ++ lib.optional (pkgs ? skaffold) pkgs.skaffold
     ++ lib.optional (pkgs ? tmux-sessionizer) pkgs.tmux-sessionizer;
@@ -209,16 +284,6 @@
     '';
   };
 
-  services.mako = {
-    enable = true;
-    settings = {
-      default-timeout = 8000;
-      font = "JetBrainsMono Nerd Font 10";
-      border-size = 2;
-      border-radius = 8;
-    };
-  };
-
   gtk = {
     enable = true;
     theme = {
@@ -254,32 +319,74 @@
     };
   };
 
-  # Override Google Chrome's desktop entry so launching it always opens a new
-  # window instead of focusing an existing one. Shadows the system .desktop via
-  # XDG_DATA_DIRS precedence (~/.local/share takes priority).
-  xdg.dataFile."applications/google-chrome.desktop".text = ''
-    [Desktop Entry]
-    Version=1.0
-    Name=Google Chrome
-    GenericName=Web Browser
-    Comment=Access the Internet
-    Exec=${pkgs.google-chrome}/bin/google-chrome-stable --new-window %U
-    StartupNotify=true
-    Terminal=false
-    Icon=google-chrome
-    Type=Application
-    Categories=Network;WebBrowser;
-    MimeType=application/pdf;application/rdf+xml;application/rss+xml;application/xhtml+xml;application/xhtml_xml;application/xml;image/gif;image/jpeg;image/png;image/webp;text/html;text/xml;x-scheme-handler/http;x-scheme-handler/https;
-    Actions=new-window;new-private-window;
+  # Shadow system desktop entries so app launchers behave well under Hyprland.
+  # Apps that cannot open a second instance are moved to the current workspace.
+  xdg.dataFile = {
+    "applications/google-chrome.desktop".text = ''
+      [Desktop Entry]
+      Version=1.0
+      Name=Google Chrome
+      GenericName=Web Browser
+      Comment=Access the Internet
+      Exec=${pkgs.google-chrome}/bin/google-chrome-stable --new-window %U
+      StartupNotify=true
+      StartupWMClass=Google-chrome
+      Terminal=false
+      Icon=google-chrome
+      Type=Application
+      Categories=Network;WebBrowser;
+      MimeType=application/pdf;application/rdf+xml;application/rss+xml;application/xhtml+xml;application/xhtml_xml;application/xml;image/gif;image/jpeg;image/png;image/webp;text/html;text/xml;x-scheme-handler/http;x-scheme-handler/https;
+      Actions=new-window;new-private-window;
 
-    [Desktop Action new-window]
-    Name=New Window
-    Exec=${pkgs.google-chrome}/bin/google-chrome-stable --new-window
+      [Desktop Action new-window]
+      Name=New Window
+      Exec=${pkgs.google-chrome}/bin/google-chrome-stable --new-window
 
-    [Desktop Action new-private-window]
-    Name=New Incognito Window
-    Exec=${pkgs.google-chrome}/bin/google-chrome-stable --incognito
-  '';
+      [Desktop Action new-private-window]
+      Name=New Incognito Window
+      Exec=${pkgs.google-chrome}/bin/google-chrome-stable --incognito
+    '';
+
+    "applications/blueman-manager.desktop".text = ''
+      [Desktop Entry]
+      Name=Bluetooth Manager
+      Comment=Blueman Bluetooth Manager
+      Exec=${hypr-summon}/bin/hypr-summon --match "blueman-manager|blueman|bluetooth manager" -- ${pkgs.blueman}/bin/blueman-manager
+      Icon=blueman
+      StartupNotify=true
+      Terminal=false
+      Type=Application
+      Categories=GTK;GNOME;Settings;HardwareSettings;
+    '';
+
+    "applications/org.pulseaudio.pavucontrol.desktop".text = ''
+      [Desktop Entry]
+      Version=1.0
+      Name=Volume Control
+      GenericName=Volume Control
+      Comment=Adjust the volume level
+      Exec=${hypr-summon}/bin/hypr-summon --match "pavucontrol|org[.]pulseaudio[.]pavucontrol|volume control" -- ${pkgs.pavucontrol}/bin/pavucontrol
+      Icon=org.pulseaudio.pavucontrol
+      StartupNotify=true
+      Terminal=false
+      Type=Application
+      Categories=AudioVideo;Audio;Mixer;GTK;Settings;X-XFCE-SettingsDialog;X-XFCE-HardwareSettings;
+      Keywords=pavucontrol;PulseAudio;Microphone;Volume;Audio;Mixer;Output;Input;Devices;Playback;Recording;
+    '';
+
+    "applications/nm-connection-editor.desktop".text = ''
+      [Desktop Entry]
+      Name=Network Connections
+      Comment=Manage and change your network connection settings
+      Exec=${hypr-summon}/bin/hypr-summon --match "nm-connection-editor|network connections" -- ${pkgs.networkmanagerapplet}/bin/nm-connection-editor
+      Icon=preferences-system-network
+      StartupNotify=true
+      Terminal=false
+      Type=Application
+      Categories=GNOME;GTK;Settings;X-GNOME-NetworkSettings;
+      Keywords=Network;Connections;Wi-Fi;Wifi;Ethernet;
+    '';
+  };
 
   xdg.configFile = {
     "nvim".source = inputs.nvim-config;

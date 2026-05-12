@@ -32,8 +32,7 @@ in
       ];
 
       exec-once = [
-        "waybar"
-        "mako"
+        "${pkgs.hyprpanel}/bin/hyprpanel"
         "blueman-applet"
         "hyprpaper"
       ];
@@ -86,6 +85,7 @@ in
         "$mod, Return, exec, ${terminal}"
         "$mod, D, exec, rofi -show drun"
         "$mod SHIFT, Q, killactive"
+        "$mod, mouse:274, killactive"
         "$mod, F, fullscreen"
         "$mod SHIFT, Space, togglefloating"
         "$mod, R, submap, resize"
@@ -101,8 +101,8 @@ in
         "$mod SHIFT, K, movewindow, u"
         "$mod SHIFT, L, movewindow, r"
 
-        "$mod CTRL, H, moveworkspacetomonitor, current -1"
-        "$mod CTRL, L, moveworkspacetomonitor, current +1"
+        "$mod CTRL, H, movecurrentworkspacetomonitor, -1"
+        "$mod CTRL, L, movecurrentworkspacetomonitor, +1"
 
         # Top-row digits by scancode: layout-independent on both keyboards.
         "$mod, code:10, workspace, 1"
@@ -162,144 +162,54 @@ in
     '';
   };
 
-  programs.waybar = {
+  programs.hyprpanel = {
     enable = true;
-    settings.mainBar = {
-      layer = "top";
-      position = "top";
-      modules-left = [ "hyprland/workspaces" ];
-      modules-center = [ "hyprland/window" ];
-      modules-right = [
-        "mpris"
-        "tray"
-        "bluetooth"
-        "cpu"
-        "memory"
-        "pulseaudio"
-        "network"
-        "battery"
-        "hyprland/language"
-        "clock"
-      ];
-      "hyprland/workspaces" = {
-        separate-outputs = true;
-      };
-      "hyprland/window" = {
-        separate-outputs = true;
-      };
-      "hyprland/language" = {
-        format = "󰌌 {short}";
-        on-click = "hyprctl switchxkblayout all next";
-      };
-      mpris = {
-        format = "{player_icon} {title}";
-        format-paused = "{player_icon} {status_icon} {title}";
-        player-icons = {
-          default = "󰎆";
-          chrome = "";
-          chromium = "";
-          firefox = "";
+    systemd.enable = false;
+    settings = {
+      bar = {
+        layouts."*" = {
+          left = [ "dashboard" "workspaces" ];
+          middle = [ "windowtitle" ];
+          right = [ "volume" "network" "bluetooth" "battery" "systray" "clock" "notifications" ];
         };
-        status-icons = {
-          paused = "";
+        launcher.icon = "";
+        volume.label = false;
+        network = {
+          label = false;
+          showWifiInfo = true;
+          truncation_size = 18;
         };
-        title-len = 30;
-      };
-      tray = {
-        spacing = 8;
-      };
-      bluetooth = {
-        format = "󰂯";
-        format-connected = "󰂱 {num_connections}";
-        format-disabled = "󰂲";
-        tooltip-format = "Bluetooth {status}";
-        tooltip-format-connected = "{device_enumerate}";
-        tooltip-format-enumerate-connected = "{device_alias}";
-        on-click = "blueman-manager";
-        on-click-right = "bluetoothctl power toggle";
-      };
-      cpu = {
-        format = "󰻠 {usage}%";
-        interval = 5;
-        tooltip = false;
-      };
-      memory = {
-        format = "󰍛 {percentage}%";
-        interval = 5;
-        tooltip-format = "{used:0.1f}G / {total:0.1f}G";
-      };
-      pulseaudio = {
-        format = "{icon} {volume}%";
-        format-muted = "󰝟 muted";
-        format-icons = {
-          default = [ "󰕿" "󰖀" "󰕾" ];
+        bluetooth.label = false;
+        battery.label = true;
+        clock = {
+          format = "%H:%M";
+          showIcon = false;
         };
-        on-click = "pavucontrol";
-      };
-      network = {
-        format-wifi = "󰤨 {essid} {signalStrength}%";
-        format-ethernet = "󰈀 wired";
-        format-disconnected = "󰤭 offline";
-        tooltip-format-wifi = "{ipaddr} | {frequency}GHz | {bandwidthDownBits}";
-        on-click = "ghostty -e nmtui";
-      };
-      battery = {
-        format = "{icon} {capacity}%";
-        format-charging = "󰂄 {capacity}%";
-        format-icons = [ "󰂎" "󰁺" "󰁻" "󰁼" "󰁽" "󰁾" "󰁿" "󰂀" "󰂁" "󰂂" "󰁹" ];
-        states = {
-          warning = 20;
-          critical = 10;
+        workspaces = {
+          show_numbered = true;
+          show_icons = false;
+        };
+        windowtitle = {
+          icon = false;
+          truncation = true;
+          truncation_size = 70;
         };
       };
-      clock = {
-        format = "󰥔 {:%H:%M}";
-        format-alt = "󰃭 {:%Y-%m-%d %H:%M}";
-        tooltip-format = "<tt>{calendar}</tt>";
+      theme = {
+        bar = {
+          floating = true;
+          opacity = 92;
+          transparent = false;
+          buttons = {
+            style = "default";
+            monochrome = false;
+          };
+        };
+        font = {
+          name = "JetBrainsMono Nerd Font";
+          size = "12px";
+        };
       };
     };
-    style = ''
-      * {
-        border: none;
-        border-radius: 0;
-        font-family: JetBrainsMono Nerd Font, monospace;
-        font-size: 12px;
-      }
-
-      window#waybar {
-        background: rgba(20, 18, 28, 0.92);
-        color: #e0def4;
-      }
-
-      #workspaces button,
-      #clock,
-      #battery,
-      #network,
-      #pulseaudio,
-      #language,
-      #bluetooth,
-      #cpu,
-      #memory,
-      #mpris,
-      #tray {
-        padding: 0 10px;
-      }
-
-      #workspaces button.active {
-        color: #9ccfd8;
-      }
-
-      #battery.warning {
-        color: #f6c177;
-      }
-
-      #battery.critical {
-        color: #eb6f92;
-      }
-
-      #bluetooth.connected {
-        color: #9ccfd8;
-      }
-    '';
   };
 }
