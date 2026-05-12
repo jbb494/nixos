@@ -131,6 +131,11 @@ in
         ", XF86AudioMute, exec, wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
         ", XF86MonBrightnessUp, exec, brightnessctl set +10%"
         ", XF86MonBrightnessDown, exec, brightnessctl set 10%-"
+        ", XF86AudioPlay, exec, playerctl play-pause"
+        ", XF86AudioPause, exec, playerctl play-pause"
+        ", XF86AudioNext, exec, playerctl next"
+        ", XF86AudioPrev, exec, playerctl previous"
+        ", XF86AudioStop, exec, playerctl stop"
       ];
 
       binde = [
@@ -164,7 +169,18 @@ in
       position = "top";
       modules-left = [ "hyprland/workspaces" ];
       modules-center = [ "hyprland/window" ];
-      modules-right = [ "hyprland/language" "pulseaudio" "network" "battery" "clock" ];
+      modules-right = [
+        "mpris"
+        "tray"
+        "bluetooth"
+        "cpu"
+        "memory"
+        "pulseaudio"
+        "network"
+        "battery"
+        "hyprland/language"
+        "clock"
+      ];
       "hyprland/workspaces" = {
         separate-outputs = true;
       };
@@ -172,23 +188,74 @@ in
         separate-outputs = true;
       };
       "hyprland/language" = {
-        format = "{}";
+        format = "󰌌 {short}";
+        on-click = "hyprctl switchxkblayout all next";
       };
-      battery = {
-        format = "{capacity}%";
-        format-charging = "{capacity}%+";
+      mpris = {
+        format = "{player_icon} {title}";
+        format-paused = "{player_icon} {status_icon} {title}";
+        player-icons = {
+          default = "󰎆";
+          chrome = "";
+          chromium = "";
+          firefox = "";
+        };
+        status-icons = {
+          paused = "";
+        };
+        title-len = 30;
       };
-      clock = {
-        format = "{:%Y-%m-%d %H:%M}";
+      tray = {
+        spacing = 8;
       };
-      network = {
-        format-wifi = "{essid}";
-        format-ethernet = "wired";
-        format-disconnected = "offline";
+      bluetooth = {
+        format = "󰂯";
+        format-connected = "󰂱 {num_connections}";
+        format-disabled = "󰂲";
+        tooltip-format = "Bluetooth {status}";
+        tooltip-format-connected = "{device_enumerate}";
+        tooltip-format-enumerate-connected = "{device_alias}";
+        on-click = "blueman-manager";
+        on-click-right = "bluetoothctl power toggle";
+      };
+      cpu = {
+        format = "󰻠 {usage}%";
+        interval = 5;
+        tooltip = false;
+      };
+      memory = {
+        format = "󰍛 {percentage}%";
+        interval = 5;
+        tooltip-format = "{used:0.1f}G / {total:0.1f}G";
       };
       pulseaudio = {
-        format = "{volume}%";
-        format-muted = "muted";
+        format = "{icon} {volume}%";
+        format-muted = "󰝟 muted";
+        format-icons = {
+          default = [ "󰕿" "󰖀" "󰕾" ];
+        };
+        on-click = "pavucontrol";
+      };
+      network = {
+        format-wifi = "󰤨 {essid} {signalStrength}%";
+        format-ethernet = "󰈀 wired";
+        format-disconnected = "󰤭 offline";
+        tooltip-format-wifi = "{ipaddr} | {frequency}GHz | {bandwidthDownBits}";
+        on-click = "ghostty -e nmtui";
+      };
+      battery = {
+        format = "{icon} {capacity}%";
+        format-charging = "󰂄 {capacity}%";
+        format-icons = [ "󰂎" "󰁺" "󰁻" "󰁼" "󰁽" "󰁾" "󰁿" "󰂀" "󰂁" "󰂂" "󰁹" ];
+        states = {
+          warning = 20;
+          critical = 10;
+        };
+      };
+      clock = {
+        format = "󰥔 {:%H:%M}";
+        format-alt = "󰃭 {:%Y-%m-%d %H:%M}";
+        tooltip-format = "<tt>{calendar}</tt>";
       };
     };
     style = ''
@@ -209,11 +276,28 @@ in
       #battery,
       #network,
       #pulseaudio,
-      #language {
+      #language,
+      #bluetooth,
+      #cpu,
+      #memory,
+      #mpris,
+      #tray {
         padding: 0 10px;
       }
 
       #workspaces button.active {
+        color: #9ccfd8;
+      }
+
+      #battery.warning {
+        color: #f6c177;
+      }
+
+      #battery.critical {
+        color: #eb6f92;
+      }
+
+      #bluetooth.connected {
         color: #9ccfd8;
       }
     '';

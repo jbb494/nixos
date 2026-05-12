@@ -30,6 +30,7 @@
       bun
       cmake
       delta
+      discord
       docker-compose
       gcc
       gettext
@@ -49,6 +50,7 @@
       python311
       rofi
       slurp
+      spotify
       stylua
       swappy
       typescript-language-server
