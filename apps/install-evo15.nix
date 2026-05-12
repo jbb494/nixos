@@ -53,6 +53,16 @@ writeShellApplication {
       exit 1
     fi
 
+    # Disable any active swap that lives on the target disk; disko cannot
+    # repartition a device that is in use. Other swaps are left alone.
+    while read -r swap_name _; do
+      [[ -z "''${swap_name}" || "''${swap_name}" == "Filename" ]] && continue
+      if [[ "''${swap_name}" == "''${disk}"* ]]; then
+        echo "Disabling swap on ''${swap_name} (lives on target disk)"
+        swapoff "''${swap_name}"
+      fi
+    done < /proc/swaps
+
     echo
     echo "Disk encryption passphrase:"
     echo "  disko/cryptsetup will ask for the LUKS passphrase during formatting."
