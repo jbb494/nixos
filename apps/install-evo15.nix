@@ -53,6 +53,15 @@ writeShellApplication {
       exit 1
     fi
 
+    # Pre-build the system into the nix store while swap is still available.
+    # disko-install would otherwise do this build itself, AFTER we have
+    # disabled swap on the target disk -- which OOMs the installer.
+    flake_base="''${flake_ref%#*}"
+    flake_attr="''${flake_ref##*#}"
+    toplevel_ref="''${flake_base}#nixosConfigurations.''${flake_attr}.config.system.build.toplevel"
+    echo "Pre-building system toplevel: ''${toplevel_ref}"
+    nix --experimental-features 'nix-command flakes' build --no-link "''${toplevel_ref}"
+
     # Disable any active swap that lives on the target disk; disko cannot
     # repartition a device that is in use. Other swaps are left alone.
     while read -r swap_name _; do
