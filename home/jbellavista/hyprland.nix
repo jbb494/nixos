@@ -10,6 +10,10 @@ in
     settings = {
       "$mod" = "SUPER";
 
+      ecosystem = {
+        no_update_news = true;
+      };
+
       exec-once = [
         "waybar"
         "mako"
