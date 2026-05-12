@@ -165,6 +165,12 @@ in
       modules-left = [ "hyprland/workspaces" ];
       modules-center = [ "hyprland/window" ];
       modules-right = [ "hyprland/language" "pulseaudio" "network" "battery" "clock" ];
+      "hyprland/workspaces" = {
+        separate-outputs = true;
+      };
+      "hyprland/window" = {
+        separate-outputs = true;
+      };
       "hyprland/language" = {
         format = "{}";
       };
