@@ -2,8 +2,18 @@
 
 let
   terminal = "ghostty";
+  wallpaper = "${pkgs.nixos-artwork.wallpapers.simple-dark-gray.gnomeFilePath}";
 in
 {
+  home.packages = [ pkgs.hyprpaper ];
+
+  xdg.configFile."hypr/hyprpaper.conf".text = ''
+    preload = ${wallpaper}
+    wallpaper = ,${wallpaper}
+    splash = false
+    ipc = off
+  '';
+
   wayland.windowManager.hyprland = {
     enable = true;
     systemd.enable = false;
@@ -25,6 +35,7 @@ in
         "waybar"
         "mako"
         "blueman-applet"
+        "hyprpaper"
       ];
 
       env = [
@@ -44,7 +55,7 @@ in
         blur.enabled = false;
       };
 
-      animations.enabled = true;
+      animations.enabled = false;
 
       input = {
         kb_layout = "es,us";
@@ -93,26 +104,27 @@ in
         "$mod CTRL, H, moveworkspacetomonitor, current -1"
         "$mod CTRL, L, moveworkspacetomonitor, current +1"
 
-        "$mod, 1, workspace, 1"
-        "$mod, 2, workspace, 2"
-        "$mod, 3, workspace, 3"
-        "$mod, 4, workspace, 4"
-        "$mod, 5, workspace, 5"
-        "$mod, 6, workspace, 6"
-        "$mod, 7, workspace, 7"
-        "$mod, 8, workspace, 8"
-        "$mod, 9, workspace, 9"
-        "$mod, 0, workspace, 10"
-        "$mod SHIFT, 1, movetoworkspace, 1"
-        "$mod SHIFT, 2, movetoworkspace, 2"
-        "$mod SHIFT, 3, movetoworkspace, 3"
-        "$mod SHIFT, 4, movetoworkspace, 4"
-        "$mod SHIFT, 5, movetoworkspace, 5"
-        "$mod SHIFT, 6, movetoworkspace, 6"
-        "$mod SHIFT, 7, movetoworkspace, 7"
-        "$mod SHIFT, 8, movetoworkspace, 8"
-        "$mod SHIFT, 9, movetoworkspace, 9"
-        "$mod SHIFT, 0, movetoworkspace, 10"
+        # Top-row digits by scancode: layout-independent on both keyboards.
+        "$mod, code:10, workspace, 1"
+        "$mod, code:11, workspace, 2"
+        "$mod, code:12, workspace, 3"
+        "$mod, code:13, workspace, 4"
+        "$mod, code:14, workspace, 5"
+        "$mod, code:15, workspace, 6"
+        "$mod, code:16, workspace, 7"
+        "$mod, code:17, workspace, 8"
+        "$mod, code:18, workspace, 9"
+        "$mod, code:19, workspace, 10"
+        "$mod SHIFT, code:10, movetoworkspace, 1"
+        "$mod SHIFT, code:11, movetoworkspace, 2"
+        "$mod SHIFT, code:12, movetoworkspace, 3"
+        "$mod SHIFT, code:13, movetoworkspace, 4"
+        "$mod SHIFT, code:14, movetoworkspace, 5"
+        "$mod SHIFT, code:15, movetoworkspace, 6"
+        "$mod SHIFT, code:16, movetoworkspace, 7"
+        "$mod SHIFT, code:17, movetoworkspace, 8"
+        "$mod SHIFT, code:18, movetoworkspace, 9"
+        "$mod SHIFT, code:19, movetoworkspace, 10"
 
         ", XF86AudioRaiseVolume, exec, wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+"
         ", XF86AudioLowerVolume, exec, wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"

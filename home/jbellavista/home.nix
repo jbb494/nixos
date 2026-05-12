@@ -17,6 +17,13 @@
       EDITOR = "nvim";
       TERMINAL = "ghostty";
     };
+    pointerCursor = {
+      name = "Adwaita";
+      package = pkgs.adwaita-icon-theme;
+      size = 24;
+      gtk.enable = true;
+      x11.enable = true;
+    };
     packages = with pkgs; [
       bat
       brightnessctl
@@ -110,6 +117,7 @@
   programs.ssh = {
     enable = true;
     enableDefaultConfig = false;
+    includes = [ "~/.ssh/config.local" ];
     matchBlocks."github.com-personal" = {
       hostname = "github.com";
       user = "git";
@@ -204,6 +212,41 @@
       font = "JetBrainsMono Nerd Font 10";
       border-size = 2;
       border-radius = 8;
+    };
+  };
+
+  gtk = {
+    enable = true;
+    theme = {
+      name = "Adwaita-dark";
+      package = pkgs.gnome-themes-extra;
+    };
+    iconTheme = {
+      name = "Adwaita";
+      package = pkgs.adwaita-icon-theme;
+    };
+    gtk3.extraConfig.gtk-application-prefer-dark-theme = 1;
+    gtk4 = {
+      theme = {
+        name = "Adwaita-dark";
+        package = pkgs.gnome-themes-extra;
+      };
+      extraConfig.gtk-application-prefer-dark-theme = 1;
+    };
+  };
+
+  qt = {
+    enable = true;
+    platformTheme.name = "gtk";
+    style.name = "adwaita-dark";
+  };
+
+  dconf.settings = {
+    "org/gnome/desktop/interface" = {
+      color-scheme = "prefer-dark";
+      gtk-theme = "Adwaita-dark";
+      cursor-theme = "Adwaita";
+      cursor-size = 24;
     };
   };
 
