@@ -62,6 +62,10 @@
       jack.enable = true;
       pulse.enable = true;
     };
+    tailscale = {
+      enable = true;
+      openFirewall = true;
+    };
   };
 
   users.users.jbellavista.openssh.authorizedKeys.keys = [
@@ -86,6 +90,7 @@
     neovim
     pciutils
     ripgrep
+    tailscale
     tldr
     tree
     tree-sitter

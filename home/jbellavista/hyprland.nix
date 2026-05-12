@@ -3,13 +3,19 @@
 let
   terminal = "ghostty";
   wallpaper = "${pkgs.nixos-artwork.wallpapers.gradient-grey.gnomeFilePath}";
+  wallpaperMonitors = [ "eDP-1" "DP-1" ];
 in
 {
   home.packages = [ pkgs.hyprlock pkgs.hyprpaper ];
 
   xdg.configFile."hypr/hyprpaper.conf".text = ''
-    preload = ${wallpaper}
-    wallpaper = ,${wallpaper}
+    ${lib.concatMapStringsSep "\n\n" (monitor: ''
+      wallpaper {
+        monitor = ${monitor}
+        path = ${wallpaper}
+      }
+    '') wallpaperMonitors}
+
     splash = false
     ipc = off
   '';
@@ -65,8 +71,14 @@ in
       exec-once = [
         "${pkgs.hyprpanel}/bin/hyprpanel"
         "blueman-applet"
-        "hyprpaper"
+        "${pkgs.hyprpaper}/bin/hyprpaper"
       ];
+
+      misc = {
+        disable_hyprland_logo = true;
+        disable_splash_rendering = true;
+        force_default_wallpaper = 0;
+      };
 
       env = [
         "NIXOS_OZONE_WL,1"
@@ -181,6 +193,7 @@ in
         "$mod, mouse:272, movewindow"
         "$mod, mouse:273, resizewindow"
       ];
+
     };
     extraConfig = ''
       submap = resize
