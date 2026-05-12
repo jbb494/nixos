@@ -192,6 +192,8 @@
     syntaxHighlighting.enable = true;
     initContent = ''
       bindkey -v
+      bindkey -M viins '^P' up-history
+      bindkey -M viins '^N' down-history
 
       ${lib.optionalString (pkgs ? mise) ''eval "$(${pkgs.mise}/bin/mise activate zsh)"''}
 
@@ -250,11 +252,44 @@
     };
   };
 
+  # Override Google Chrome's desktop entry so launching it always opens a new
+  # window instead of focusing an existing one. Shadows the system .desktop via
+  # XDG_DATA_DIRS precedence (~/.local/share takes priority).
+  xdg.dataFile."applications/google-chrome.desktop".text = ''
+    [Desktop Entry]
+    Version=1.0
+    Name=Google Chrome
+    GenericName=Web Browser
+    Comment=Access the Internet
+    Exec=${pkgs.google-chrome}/bin/google-chrome-stable --new-window %U
+    StartupNotify=true
+    Terminal=false
+    Icon=google-chrome
+    Type=Application
+    Categories=Network;WebBrowser;
+    MimeType=application/pdf;application/rdf+xml;application/rss+xml;application/xhtml+xml;application/xhtml_xml;application/xml;image/gif;image/jpeg;image/png;image/webp;text/html;text/xml;x-scheme-handler/http;x-scheme-handler/https;
+    Actions=new-window;new-private-window;
+
+    [Desktop Action new-window]
+    Name=New Window
+    Exec=${pkgs.google-chrome}/bin/google-chrome-stable --new-window
+
+    [Desktop Action new-private-window]
+    Name=New Incognito Window
+    Exec=${pkgs.google-chrome}/bin/google-chrome-stable --incognito
+  '';
+
   xdg.configFile = {
     "nvim".source = inputs.nvim-config;
     "opencode/config.json".text = ''
       {
         "$schema": "https://opencode.ai/config.json",
+        "share": "disabled"
+      }
+    '';
+    "opencode/tui.json".text = ''
+      {
+        "$schema": "https://opencode.ai/tui.json",
         "keybinds": {
           "leader": "ctrl+x",
           "app_exit": "ctrl+c,<leader>q",
@@ -264,25 +299,25 @@
           "session_list": "<leader>l",
           "session_share": "<leader>s",
           "session_unshare": "<leader>u",
-          "session_interrupt": "esc",
+          "session_interrupt": "escape",
           "session_compact": "<leader>c",
-          "messages_page_up": "pgup",
-          "messages_page_down": "pgdown",
+          "messages_page_up": "pageup",
+          "messages_page_down": "pagedown",
           "messages_half_page_up": "ctrl+u",
           "messages_half_page_down": "ctrl+d",
           "messages_first": "ctrl+g",
           "messages_last": "ctrl+alt+g",
           "messages_copy": "<leader>y",
-          "messages_undo": "<leader>r",
+          "messages_undo": "<leader>u",
+          "messages_redo": "<leader>r",
           "model_list": "<leader>m",
           "input_clear": "ctrl+c",
           "input_paste": "ctrl+v",
-          "input_submit": "enter",
-          "input_newline": "shift+enter,ctrl+j",
+          "input_submit": "return",
+          "input_newline": "shift+return,ctrl+return,alt+return,ctrl+j",
           "history_previous": "ctrl+up",
           "history_next": "ctrl+down"
-        },
-        "share": "disabled"
+        }
       }
     '';
     "tms/config.toml".text = ''

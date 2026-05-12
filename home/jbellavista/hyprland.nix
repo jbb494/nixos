@@ -2,7 +2,7 @@
 
 let
   terminal = "ghostty";
-  wallpaper = "${pkgs.nixos-artwork.wallpapers.simple-dark-gray.gnomeFilePath}";
+  wallpaper = "${pkgs.nixos-artwork.wallpapers.gradient-grey.gnomeFilePath}";
 in
 {
   home.packages = [ pkgs.hyprpaper ];
@@ -84,7 +84,7 @@ in
 
       bind = [
         "$mod, Return, exec, ${terminal}"
-        "$mod, G, exec, rofi -show drun"
+        "$mod, D, exec, rofi -show drun"
         "$mod SHIFT, Q, killactive"
         "$mod, F, fullscreen"
         "$mod SHIFT, Space, togglefloating"
