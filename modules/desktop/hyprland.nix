@@ -14,7 +14,7 @@
     enable = true;
     settings.default_session = {
       user = "greeter";
-      command = "${pkgs.tuigreet}/bin/tuigreet --time --cmd Hyprland";
+      command = "${pkgs.tuigreet}/bin/tuigreet --time --cmd '${pkgs.uwsm}/bin/uwsm start hyprland-uwsm.desktop'";
     };
   };
 
