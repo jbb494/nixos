@@ -42,6 +42,17 @@
         ];
       };
 
+      nixosConfigurations.evo15-minimal = nixpkgs.lib.nixosSystem {
+        inherit system;
+        specialArgs = {
+          inherit inputs self xkeyboardConfigErgodox;
+        };
+        modules = [
+          disko.nixosModules.disko
+          ./hosts/evo15/configuration-minimal.nix
+        ];
+      };
+
       packages.${system} = {
         inherit xkeyboardConfigErgodox;
         install-evo15 = pkgs.callPackage ./apps/install-evo15.nix {
