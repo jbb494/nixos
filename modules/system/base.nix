@@ -75,6 +75,7 @@
     curl
     fd
     file
+    gcc
     git
     htop
     jq
@@ -85,6 +86,7 @@
     ripgrep
     tldr
     tree
+    tree-sitter
     unzip
     usbutils
     vim
