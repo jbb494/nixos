@@ -1,5 +1,6 @@
 { writeShellApplication
 , coreutils
+, cryptsetup
 , diskoPackage
 , gnugrep
 , nixosInstallTools
@@ -11,6 +12,7 @@ writeShellApplication {
 
   runtimeInputs = [
     coreutils
+    cryptsetup
     diskoPackage
     gnugrep
     nixosInstallTools
@@ -99,15 +101,35 @@ writeShellApplication {
       --flake "''${flake_ref}" \
       --disk main "''${disk}"
 
-    if ! mountpoint -q /mnt; then
-      echo "Installation did not leave /mnt mounted; cannot set the user password." >&2
-      exit 1
-    fi
+    # disko-install unmounts everything when it returns, so re-open the
+    # LUKS volume and mount the btrfs subvolumes ourselves to set the
+    # user password inside the installed system.
+    cleanup_installed_mount() {
+      set +e
+      umount -R /mnt 2>/dev/null
+      cryptsetup luksClose crypted 2>/dev/null
+    }
+    trap cleanup_installed_mount EXIT
+
+    echo
+    echo "Re-opening the LUKS volume to set the user password."
+    echo "Enter the same passphrase you just used:"
+    cryptsetup luksOpen /dev/disk/by-partlabel/disk-main-luks crypted
+
+    mount -o subvol=/root /dev/mapper/crypted /mnt
+    mount --mkdir -o subvol=/home /dev/mapper/crypted /mnt/home
+    mount --mkdir -o subvol=/nix  /dev/mapper/crypted /mnt/nix
+    mount --mkdir -o subvol=/log  /dev/mapper/crypted /mnt/var/log
+    mount --mkdir /dev/disk/by-partlabel/disk-main-ESP /mnt/boot
 
     echo
     echo "Set the login and sudo password for jbellavista now."
     echo "This password is written to the installed system and is not stored in Git."
     nixos-enter --root /mnt --command "passwd jbellavista"
+
+    umount -R /mnt
+    cryptsetup luksClose crypted
+    trap - EXIT
 
     if [[ "''${flake_attr}" == "evo15-minimal" ]]; then
       echo
