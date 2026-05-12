@@ -21,7 +21,16 @@ writeShellApplication {
     set -euo pipefail
 
     disk="''${NIXOS_INSTALL_DISK:-/dev/nvme0n1}"
-    flake_ref="''${NIXOS_FLAKE_REF:-github:jbb494/nixos#evo15}"
+    flake_ref="''${NIXOS_FLAKE_REF:-github:jbb494/nixos#evo15-minimal}"
+
+    if [[ "''${flake_ref}" != *#* ]]; then
+      echo "NIXOS_FLAKE_REF must include a NixOS configuration attribute, for example github:jbb494/nixos#evo15-minimal" >&2
+      exit 1
+    fi
+
+    flake_base="''${flake_ref%#*}"
+    flake_attr="''${flake_ref##*#}"
+    full_flake_ref="''${NIXOS_FULL_FLAKE_REF:-''${flake_base}#evo15}"
 
     if [[ "''${EUID}" -ne 0 ]]; then
       echo "Run this from the NixOS installer as root, for example:"
@@ -56,17 +65,24 @@ writeShellApplication {
     # Pre-build the system into the nix store while swap is still available.
     # disko-install would otherwise do this build itself, AFTER we have
     # disabled swap on the target disk -- which OOMs the installer.
-    flake_base="''${flake_ref%#*}"
-    flake_attr="''${flake_ref##*#}"
     toplevel_ref="''${flake_base}#nixosConfigurations.''${flake_attr}.config.system.build.toplevel"
     echo "Pre-building system toplevel: ''${toplevel_ref}"
-    nix --experimental-features 'nix-command flakes' build --no-link "''${toplevel_ref}"
+    nix --experimental-features 'nix-command flakes' build --no-link --option max-jobs 1 --option cores 2 "''${toplevel_ref}"
 
     # Disable any active swap that lives on the target disk; disko cannot
     # repartition a device that is in use. Other swaps are left alone.
+    target_devices="$(
+      while read -r device; do
+        readlink -f "''${device}"
+      done < <(lsblk -nrpo NAME "''${disk}")
+    )"
+
     while read -r swap_name _; do
       [[ -z "''${swap_name}" || "''${swap_name}" == "Filename" ]] && continue
-      if [[ "''${swap_name}" == "''${disk}"* ]]; then
+      swap_device="$(readlink -f "''${swap_name}" 2>/dev/null || true)"
+      [[ -z "''${swap_device}" ]] && swap_device="''${swap_name}"
+
+      if printf '%s\n' "''${target_devices}" | grep -Fxq "''${swap_device}"; then
         echo "Disabling swap on ''${swap_name} (lives on target disk)"
         swapoff "''${swap_name}"
       fi
@@ -92,6 +108,12 @@ writeShellApplication {
     echo "Set the login and sudo password for jbellavista now."
     echo "This password is written to the installed system and is not stored in Git."
     nixos-enter --root /mnt --command "passwd jbellavista"
+
+    if [[ "''${flake_attr}" == "evo15-minimal" ]]; then
+      echo
+      echo "After reboot, switch to the full desktop configuration:"
+      echo "  sudo nixos-rebuild switch --flake ''${full_flake_ref}"
+    fi
 
     echo
     echo "Reboot when ready. Keep the installer USB nearby for the first boot."
