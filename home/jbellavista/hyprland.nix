@@ -14,6 +14,13 @@ in
         no_update_news = true;
       };
 
+      monitor = [
+        # Fallback for any unspecified monitor: preferred mode, auto-placed,
+        # scale 1. Matches Hyprland's built-in default; declared explicitly
+        # so per-monitor overrides have a documented place to live.
+        ", preferred, auto, 1"
+      ];
+
       exec-once = [
         "waybar"
         "mako"
@@ -64,7 +71,7 @@ in
 
       bind = [
         "$mod, Return, exec, ${terminal}"
-        "$mod, D, exec, rofi -show drun"
+        "$mod, G, exec, rofi -show drun"
         "$mod SHIFT, Q, killactive"
         "$mod, F, fullscreen"
         "$mod SHIFT, Space, togglefloating"
