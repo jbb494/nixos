@@ -1,7 +1,7 @@
 { lib, pkgs, ... }:
 
 let
-  terminal = if pkgs ? ghostty then "ghostty" else "alacritty";
+  terminal = "ghostty";
 in
 {
   wayland.windowManager.hyprland = {

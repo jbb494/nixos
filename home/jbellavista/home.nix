@@ -15,26 +15,27 @@
     stateVersion = "25.11";
     sessionVariables = {
       EDITOR = "nvim";
-      TERMINAL = if pkgs ? ghostty then "ghostty" else "alacritty";
+      TERMINAL = "ghostty";
     };
     packages = with pkgs; [
-      alacritty
       bat
       brightnessctl
       bun
       cmake
       delta
       docker-compose
-      firefox
       gcc
       gettext
+      ghostty
       gh
       go
+      google-chrome
       grim
       jq
       kubectl
       lua-language-server
       nodejs_22
+      opencode
       pavucontrol
       playerctl
       pnpm
@@ -49,25 +50,12 @@
       waybar
       wl-clipboard
     ]
-    ++ lib.optional (pkgs ? ghostty) pkgs.ghostty
     ++ lib.optional (pkgs ? mise) pkgs.mise
-    ++ lib.optional (pkgs ? opencode) pkgs.opencode
     ++ lib.optional (pkgs ? skaffold) pkgs.skaffold
     ++ lib.optional (pkgs ? tmux-sessionizer) pkgs.tmux-sessionizer;
   };
 
   programs.home-manager.enable = true;
-
-  programs.alacritty = {
-    enable = true;
-    settings = {
-      window.opacity = 1.0;
-      font.normal = {
-        family = "JetBrainsMono Nerd Font";
-        style = "Regular";
-      };
-    };
-  };
 
   programs.direnv = {
     enable = true;
@@ -150,7 +138,7 @@
       yank
     ];
     extraConfig = ''
-      set -as terminal-overrides ',alacritty*:Tc,ghostty*:Tc'
+      set -as terminal-overrides ',ghostty*:Tc'
       set -g display-time 4000
       set -g status-interval 5
       set -g focus-events on
