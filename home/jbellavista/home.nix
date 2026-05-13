@@ -5,7 +5,7 @@
 }:
 
 let
-  tms = lib.getExe pkgs.tmux-sessionizer;
+  tmuxProjectsBin = "/etc/profiles/per-user/jbellavista/bin/tmux-projects";
 
   screenshot-full = pkgs.writeShellApplication {
     name = "screenshot-full";
@@ -103,10 +103,12 @@ let
     '';
   };
 
-  tms-app = pkgs.writeShellApplication {
-    name = "tms-app";
+  tmux-projects = pkgs.writeShellApplication {
+    name = "tmux-projects";
     runtimeInputs = with pkgs; [
       coreutils
+      findutils
+      fzf
       ghostty
       hyprland
       jq
@@ -115,43 +117,18 @@ let
     text = ''
       set -euo pipefail
 
-      tms_config_dir="''${XDG_RUNTIME_DIR:-/tmp}/tms-app"
-      tms_config="$tms_config_dir/config.toml"
-      mkdir -p "$tms_config_dir"
-      rm -f "$tms_config"
-      install -m 600 /dev/null "$tms_config"
-
-      shopt -s nullglob
-      worktrees=()
-      for git_file in "$HOME"/*/*-worktrees/*/.git "$HOME"/*/worktrees/*/.git; do
-        [[ -f "$git_file" ]] || continue
-        worktrees+=("$(dirname "$git_file")")
-      done
-      shopt -u nullglob
-
-      if [[ ''${#worktrees[@]} -gt 0 ]]; then
-        printf 'bookmarks = [\n' >> "$tms_config"
-        for worktree in "''${worktrees[@]}"; do
-          printf '  %s,\n' "$(printf '%s' "$worktree" | jq -Rs .)" >> "$tms_config"
-        done
-        printf ']\n\n' >> "$tms_config"
-      fi
-
-      while IFS= read -r line || [[ -n "$line" ]]; do
-        printf '%s\n' "$line" >> "$tms_config"
-      done < "$HOME/.config/tms/config.toml"
-
       tmux_command=(tmux)
       tmux_socket="''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/tmux-$(id -u)/default"
       if [[ -S "$tmux_socket" ]]; then
         tmux_command=(tmux -S "$tmux_socket")
       fi
 
-      client="$("''${tmux_command[@]}" list-clients -F '#{client_activity} #{client_tty}' 2>/dev/null \
-        | sort -rn \
-        | while read -r _ tty; do printf '%s' "$tty"; break; done || true)"
+      command="''${1:-open}"
+      shift || true
 
-      if [[ -n "$client" ]]; then
+      focus_tmux_terminal() {
+        local address=""
+
         address="$(hyprctl clients -j 2>/dev/null | jq -r '
           map(select(
             (.class // "") == "com.mitchellh.ghostty" or
@@ -164,13 +141,162 @@ let
         if [[ -n "$address" ]]; then
           hyprctl dispatch focuswindow "address:$address" >/dev/null || true
         fi
+      }
 
-        if "''${tmux_command[@]}" display-popup -t "$client" -E "env TMS_CONFIG_FILE=$tms_config ${tms}"; then
+      open_picker() {
+        client="$("''${tmux_command[@]}" list-clients -F '#{client_activity} #{client_tty}' 2>/dev/null \
+          | sort -rn \
+          | while read -r _ tty; do printf '%s' "$tty"; break; done || true)"
+
+        if [[ -n "$client" ]]; then
+          focus_tmux_terminal
+          exec "''${tmux_command[@]}" display-popup -t "$client" -E "$0 select $*"
+        fi
+
+        exec ghostty -e "$0" select "$@"
+      }
+
+      collect_entries() {
+        local nvim_only=0
+        declare -gA seen=()
+        entries=()
+
+        if [[ "''${1:-}" == "--nvim" ]]; then
+          nvim_only=1
+        fi
+
+        add_repo() {
+          local path="$1"
+          local label=""
+
+          path="$(realpath -m "$path")"
+          [[ -d "$path" ]] || return 0
+          [[ -n "''${seen[$path]:-}" ]] && return 0
+          seen["$path"]=1
+
+          case "$path" in
+            "$HOME"/*) label="''${path#"$HOME/"}" ;;
+            *) label="$path" ;;
+          esac
+
+          entries+=("$label"$'\t'"$path")
+        }
+
+        add_search_dir() {
+          local root="$1"
+          local depth="$2"
+          local maxdepth=$((depth + 1))
+
+          [[ -d "$root" ]] || return 0
+
+          while IFS= read -r -d ''' git_file; do
+            add_repo "$(dirname "$git_file")"
+          done < <(find "$root" -mindepth 2 -maxdepth "$maxdepth" -name .git -print0 2>/dev/null)
+        }
+
+        if [[ "$nvim_only" == "1" ]]; then
+          add_search_dir "$HOME/.local/share/nvim/lazy" 1
+          return
+        fi
+
+        add_search_dir "$HOME/personal" 2
+        add_search_dir "$HOME/.local/src" 1
+
+        shopt -s nullglob
+        for git_file in "$HOME"/*/*-worktrees/*/.git "$HOME"/*/worktrees/*/.git; do
+          [[ -f "$git_file" ]] || continue
+          home_prefix="$HOME/"
+          workspace="''${git_file#"$home_prefix"}"
+          workspace="''${workspace%%/*}"
+          add_search_dir "$HOME/$workspace" 2
+          add_repo "$(dirname "$git_file")"
+        done
+        shopt -u nullglob
+      }
+
+      select_project() {
+        collect_entries "$@"
+
+        if [[ ''${#entries[@]} -eq 0 ]]; then
+          printf 'tmux-projects: no repositories found\n' >&2
+          exit 1
+        fi
+
+        selection="$(printf '%s\n' "''${entries[@]}" \
+          | sort \
+          | cut -f1 \
+          | fzf --prompt='Projects> ')"
+
+        [[ -n "$selection" ]] || exit 0
+
+        path=""
+        for entry in "''${entries[@]}"; do
+          label="''${entry%%$'\t'*}"
+          if [[ "$label" == "$selection" ]]; then
+            path="''${entry#*$'\t'}"
+            break
+          fi
+        done
+
+        [[ -n "$path" ]] || exit 1
+
+        session_name="$(printf '%s' "$selection" | tr '/.:' '___')"
+
+        if ! "''${tmux_command[@]}" has-session -t "$session_name" 2>/dev/null; then
+          "''${tmux_command[@]}" new-session -d -s "$session_name" -c "$path"
+        fi
+
+        if [[ -n "''${TMUX:-}" ]]; then
+          "''${tmux_command[@]}" switch-client -t "$session_name"
           exit 0
         fi
-      fi
 
-      exec ghostty -e env TMS_CONFIG_FILE="$tms_config" ${tms}
+        exec "''${tmux_command[@]}" attach-session -t "$session_name"
+      }
+
+      switch_session() {
+        current="$("''${tmux_command[@]}" display-message -p '#S' 2>/dev/null || true)"
+        selection="$("''${tmux_command[@]}" list-sessions -F '#{session_last_attached} #{session_name}' 2>/dev/null \
+          | sort -rn \
+          | cut -d ' ' -f2- \
+          | grep -Fxv "$current" \
+          | fzf --no-sort --prompt='Sessions> ')"
+
+        [[ -n "$selection" ]] || exit 0
+        "''${tmux_command[@]}" switch-client -t "$selection"
+      }
+
+      switch_window() {
+        selection="$("''${tmux_command[@]}" list-windows -F '#{window_id} #{window_name}' 2>/dev/null \
+          | fzf --prompt='Windows> ')"
+
+        [[ -n "$selection" ]] || exit 0
+        "''${tmux_command[@]}" select-window -t "''${selection%% *}"
+      }
+
+      print_sessions() {
+        current="$("''${tmux_command[@]}" display-message -p '#S' 2>/dev/null || true)"
+        "''${tmux_command[@]}" list-sessions -F '#{session_name}' 2>/dev/null \
+          | while IFS= read -r session; do
+              if [[ "$session" == "$current" ]]; then
+                printf '*%s ' "$session"
+              else
+                printf '%s ' "$session"
+              fi
+            done
+      }
+
+      case "$command" in
+        open) open_picker "$@" ;;
+        select) select_project "$@" ;;
+        switch) switch_session ;;
+        windows) switch_window ;;
+        sessions) print_sessions ;;
+        *)
+          printf 'usage: tmux-projects [open|select|switch|windows|sessions]\n' >&2
+          exit 2
+          ;;
+      esac
     '';
   };
 in
@@ -236,7 +362,7 @@ in
       hypr-summon
       screenshot-full
       screenshot-region
-      tms-app
+      tmux-projects
     ]
     ++ lib.optional (pkgs ? mise) pkgs.mise
     ++ lib.optional (pkgs ? skaffold) pkgs.skaffold;
@@ -344,13 +470,13 @@ in
       bind h select-pane -L
       bind l select-pane -R
 
-      set -g status-right ' #(${tms} sessions)'
+      set -g status-right ' #(${tmuxProjectsBin} sessions)'
       unbind-key F
       bind -r '(' switch-client -p\; refresh-client -S
       bind -r ')' switch-client -n\; refresh-client -S
-      bind -r N display-popup -E 'TMS_CONFIG_FILE=~/.config/tms/config-nvim-repos.toml ${tms}'
-      bind -r f display-popup -E '${tms} switch'
-      bind -r w display-popup -E '${tms} windows'
+      bind -r N display-popup -E '${tmuxProjectsBin} select --nvim'
+      bind -r f display-popup -E '${tmuxProjectsBin} switch'
+      bind -r w display-popup -E '${tmuxProjectsBin} windows'
       bind -r o last-window
       bind -r X kill-session
     '';
@@ -548,18 +674,18 @@ in
       Keywords=Screenshot;Screen;Capture;Region;Swappy;Grim;Slurp;
     '';
 
-    "applications/tms.desktop".text = ''
+    "applications/tmux-projects.desktop".text = ''
       [Desktop Entry]
       Name=TMS
-      GenericName=Tmux Sessionizer
-      Comment=Open tmux-sessionizer in the active tmux client
-      Exec=${tms-app}/bin/tms-app
+      GenericName=Tmux Project Switcher
+      Comment=Open a project in tmux
+      Exec=${tmux-projects}/bin/tmux-projects open
       Icon=utilities-terminal
       StartupNotify=false
       Terminal=false
       Type=Application
       Categories=Development;Utility;TerminalEmulator;
-      Keywords=tms;tmux;sessionizer;worktree;terminal;ghostty;
+      Keywords=tmux;projects;worktree;terminal;ghostty;
     '';
   };
 
@@ -607,32 +733,6 @@ in
           "history_next": "ctrl+down"
         }
       }
-    '';
-    "tms/config.toml".text = ''
-      default_session = "default_session"
-      search_submodules = true
-      recursive_submodules = true
-      full_path = true
-      session_sort_order = "LastAttached"
-
-      [[search_dirs]]
-      path = "~/personal"
-      depth = 2
-
-      [[search_dirs]]
-      path = "~/.local/src"
-      depth = 1
-    '';
-    "tms/config-nvim-repos.toml".text = ''
-      default_session = "default_session"
-      search_submodules = true
-      recursive_submodules = true
-      full_path = true
-      session_sort_order = "LastAttached"
-
-      [[search_dirs]]
-      path = "~/.local/share/nvim/lazy"
-      depth = 1
     '';
   };
 }
