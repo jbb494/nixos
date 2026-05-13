@@ -18,6 +18,20 @@ let
       systemctl suspend
     '';
   };
+  ramStatus = pkgs.writeShellApplication {
+    name = "hyprpanel-ram-status";
+    runtimeInputs = [ pkgs.gawk ];
+    text = ''
+      awk '
+        /^MemTotal:/ { total = $2 }
+        /^MemAvailable:/ { available = $2 }
+        END {
+          used = total - available
+          printf "{\"free\":\"%.1f\",\"used\":\"%.1f\",\"total\":\"%.1f\"}\n", available / 1048576, used / 1048576, total / 1048576
+        }
+      ' /proc/meminfo
+    '';
+  };
   hyprwhsprModel = pkgs.fetchurl {
     url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin";
     hash = "sha256-oDd5yG3zMjB19eeWyyzlAp8A7Ihp7uP9+4l6/jbG0AI=";
@@ -41,6 +55,18 @@ in
       }
     }
   '';
+
+  xdg.configFile."hyprpanel/modules.json" = {
+    text = builtins.toJSON {
+      "custom/ram" = {
+        icon = "";
+        label = "{free} GB";
+        tooltip = "{used} / {total} GB";
+        execute = lib.getExe ramStatus;
+        interval = 2000;
+      };
+    };
+  };
 
   xdg.configFile."hypr/hyprpaper.conf".text = ''
     ${lib.concatMapStringsSep "\n\n" (monitor: ''
@@ -258,9 +284,9 @@ in
 
       bar = {
         layouts."*" = {
-          left = [ "dashboard" "workspaces" ];
+          left = [ "workspaces" ];
           middle = [ ];
-          right = [ "cpu" "ram" "volume" "network" "bluetooth" "battery" "systray" "clock" "notifications" ];
+          right = [ "cpu" "custom/ram" "volume" "network" "bluetooth" "battery" "systray" "clock" "notifications" ];
         };
         launcher.icon = "";
         volume.label = false;
