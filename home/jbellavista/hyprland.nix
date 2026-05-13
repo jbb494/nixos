@@ -2,9 +2,22 @@
 
 let
   terminal = "ghostty";
-  wallpaper = "${pkgs.nixos-artwork.wallpapers.gradient-grey.gnomeFilePath}";
+  wallpaper = "${pkgs.nixos-artwork.wallpapers.catppuccin-mocha.gnomeFilePath}";
   wallpaperMonitors = [ "eDP-1" "DP-1" ];
   hyprwhspr = lib.getExe pkgs.hyprwhspr-rs;
+  lockAndSuspend = pkgs.writeShellApplication {
+    name = "lock-and-suspend";
+    runtimeInputs = with pkgs; [
+      coreutils
+      hyprlock
+      systemd
+    ];
+    text = ''
+      hyprlock --grace 0 --immediate-render --no-fade-in &
+      sleep 1
+      systemctl suspend
+    '';
+  };
   hyprwhsprModel = pkgs.fetchurl {
     url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin";
     hash = "sha256-oDd5yG3zMjB19eeWyyzlAp8A7Ihp7uP9+4l6/jbG0AI=";
@@ -153,7 +166,7 @@ in
         "$mod, F, fullscreen"
         "$mod SHIFT, Space, togglefloating"
         "$mod, R, submap, resize"
-        "$mod, E, exec, ${pkgs.hyprlock}/bin/hyprlock"
+        "$mod, E, exec, ${lockAndSuspend}/bin/lock-and-suspend"
         "$mod, period, exit"
         "$mod, F12, exec, hyprctl switchxkblayout all next"
         ", Print, exec, ${hyprwhspr} record start"
@@ -213,6 +226,10 @@ in
 
       bindr = [
         ", Print, exec, ${hyprwhspr} record stop"
+      ];
+
+      bindl = [
+        ", switch:on:Lid Switch, exec, ${lockAndSuspend}/bin/lock-and-suspend"
       ];
 
       bindm = [

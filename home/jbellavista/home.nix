@@ -446,6 +446,10 @@ in
   };
 
   xdg.configFile = {
+    "ghostty/config".text = ''
+      font-family = JetBrainsMonoNL Nerd Font Mono
+      font-feature = -calt, -liga, -dlig
+    '';
     "nvim".source = inputs.nvim-config;
     "opencode/config.json".text = ''
       {

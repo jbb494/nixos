@@ -33,7 +33,10 @@
     tmp.cleanOnBoot = true;
   };
 
-  networking.networkmanager.enable = true;
+  networking.networkmanager = {
+    enable = true;
+    dns = "systemd-resolved";
+  };
 
   systemd.services.NetworkManager-wait-online.enable = false;
 
@@ -55,6 +58,7 @@
     fstrim.enable = true;
     gvfs.enable = true;
     openssh.enable = true;
+    resolved.enable = true;
     pipewire = {
       enable = true;
       alsa.enable = true;

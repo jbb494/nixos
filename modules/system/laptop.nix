@@ -26,8 +26,9 @@
     fwupd.enable = true;
     libinput.enable = true;
     logind.settings.Login = {
-      HandleLidSwitch = "suspend";
+      HandleLidSwitch = "ignore";
       HandleLidSwitchExternalPower = "ignore";
+      HandleLidSwitchDocked = "ignore";
     };
     power-profiles-daemon.enable = true;
     upower.enable = true;
