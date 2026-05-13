@@ -4,9 +4,30 @@ let
   terminal = "ghostty";
   wallpaper = "${pkgs.nixos-artwork.wallpapers.gradient-grey.gnomeFilePath}";
   wallpaperMonitors = [ "eDP-1" "DP-1" ];
+  hyprwhspr = lib.getExe pkgs.hyprwhspr-rs;
+  hyprwhsprModel = pkgs.fetchurl {
+    url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin";
+    hash = "sha256-oDd5yG3zMjB19eeWyyzlAp8A7Ihp7uP9+4l6/jbG0AI=";
+  };
 in
 {
-  home.packages = [ pkgs.hyprlock pkgs.hyprpaper ];
+  home.packages = [ pkgs.hyprlock pkgs.hyprpaper pkgs.hyprwhspr-rs ];
+
+  xdg.dataFile."hyprwhspr-rs/models/ggml-base.en.bin".source = hyprwhsprModel;
+
+  xdg.configFile."hyprwhspr-rs/config.jsonc".text = ''
+    {
+      "audio_feedback": true,
+      "auto_copy_clipboard": true,
+      "transcription": {
+        "provider": "whisper_cpp",
+        "whisper_cpp": {
+          "model": "base.en",
+          "models_dirs": ["~/.local/share/hyprwhspr-rs/models"]
+        }
+      }
+    }
+  '';
 
   xdg.configFile."hypr/hyprpaper.conf".text = ''
     ${lib.concatMapStringsSep "\n\n" (monitor: ''
@@ -135,6 +156,7 @@ in
         "$mod, E, exec, ${pkgs.hyprlock}/bin/hyprlock"
         "$mod, period, exit"
         "$mod, F12, exec, hyprctl switchxkblayout all next"
+        ", Print, exec, ${hyprwhspr} record start"
 
         "$mod, H, movefocus, l"
         "$mod, J, movefocus, d"
@@ -187,6 +209,10 @@ in
         "$mod SHIFT, left, resizeactive, -30 0"
         "$mod SHIFT, up, resizeactive, 0 -30"
         "$mod SHIFT, down, resizeactive, 0 30"
+      ];
+
+      bindr = [
+        ", Print, exec, ${hyprwhspr} record stop"
       ];
 
       bindm = [

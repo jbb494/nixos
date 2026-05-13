@@ -18,6 +18,8 @@
     };
   };
 
+  services.hyprwhspr-rs.enable = true;
+
   systemd.tmpfiles.rules = [
     "d /var/cache/tuigreet 0755 greeter greeter -"
   ];
