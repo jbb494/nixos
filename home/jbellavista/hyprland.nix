@@ -1,4 +1,4 @@
-{ lib, pkgs, ... }:
+{ config, lib, pkgs, ... }:
 
 let
   terminal = "ghostty";
@@ -36,6 +36,7 @@ let
     url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin";
     hash = "sha256-oDd5yG3zMjB19eeWyyzlAp8A7Ihp7uP9+4l6/jbG0AI=";
   };
+  rollnrollHyprpanelModules = config.programs.rollnroll-devtools.hyprpanel.customModules or { };
 in
 {
   home.packages = [ pkgs.hyprlock pkgs.hyprpaper pkgs.hyprwhspr-rs ];
@@ -57,7 +58,7 @@ in
   '';
 
   xdg.configFile."hyprpanel/modules.json" = {
-    text = builtins.toJSON {
+    text = builtins.toJSON ({
       "custom/ram" = {
         icon = "";
         label = "{free} GB";
@@ -65,7 +66,18 @@ in
         execute = lib.getExe ramStatus;
         interval = 2000;
       };
-    };
+    } // rollnrollHyprpanelModules);
+  };
+
+  xdg.configFile."hyprpanel/modules.scss" = {
+    text = ''
+      .cmodule-rollnroll {
+        label {
+          font-size: 1.08em;
+          font-weight: 700;
+        }
+      }
+    '';
   };
 
   xdg.configFile."hypr/hyprpaper.conf".text = ''
@@ -285,7 +297,7 @@ in
         layouts."*" = {
           left = [ "workspaces" ];
           middle = [ ];
-          right = [ "cpu" "custom/ram" "volume" "network" "bluetooth" "battery" "systray" "clock" "notifications" ];
+          right = [ "custom/rollnroll" "cpu" "custom/ram" "volume" "network" "bluetooth" "battery" "systray" "clock" "notifications" ];
         };
         launcher.icon = "";
         volume.label = false;
