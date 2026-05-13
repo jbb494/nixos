@@ -74,12 +74,28 @@
         "type": "github"
       }
     },
+    "rollnroll-devtools": {
+      "locked": {
+        "lastModified": 1778689286,
+        "narHash": "sha256-nDSUwrKZYTOvqi0RMJxd5frBlZFV+8eGwc6cDaToGKo=",
+        "ref": "refs/heads/main",
+        "rev": "435d785401b67f791ab61483307f01db40ad3f28",
+        "revCount": 2,
+        "type": "git",
+        "url": "ssh://git@github.com-rollnroll/joan-lgtm/devtools.git"
+      },
+      "original": {
+        "type": "git",
+        "url": "ssh://git@github.com-rollnroll/joan-lgtm/devtools.git"
+      }
+    },
     "root": {
       "inputs": {
         "disko": "disko",
         "home-manager": "home-manager",
         "nixpkgs": "nixpkgs",
-        "nvim-config": "nvim-config"
+        "nvim-config": "nvim-config",
+        "rollnroll-devtools": "rollnroll-devtools"
       }
     }
   },

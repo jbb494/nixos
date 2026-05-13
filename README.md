@@ -56,8 +56,21 @@ sudo env NIXOS_FLAKE_REF=github:jbb494/nixos#evo15 nix --experimental-features "
 - Reboot into the installed system and unlock LUKS with the passphrase chosen during install.
 - Log in as `jbellavista` with the password chosen during install.
 - Restore the personal SSH private key to `~/.ssh/id_ed25519_personal`; do not commit private keys to this repository.
-- Ensure SSH key permissions are strict: `chmod 700 ~/.ssh` and `chmod 600 ~/.ssh/id_ed25519_personal`.
+- Restore the RollnRoll SSH private key to `~/.ssh/id_ed25519_rollnroll`; it is required to fetch the private `rollnroll-devtools` flake input.
+- Ensure SSH key permissions are strict: `chmod 700 ~/.ssh` and `chmod 600 ~/.ssh/id_ed25519_personal ~/.ssh/id_ed25519_rollnroll`.
+- Before the first full `nixos-rebuild switch`, create a temporary bootstrap `~/.ssh/config` entry for the private devtools input:
+
+  ```sshconfig
+  Host github.com-rollnroll
+    HostName github.com
+    User git
+    IdentityFile ~/.ssh/id_ed25519_rollnroll
+    IdentitiesOnly yes
+  ```
+
+  Home Manager manages this SSH host after the first successful switch, but Nix needs the bootstrap entry before it can fetch private inputs. The managed Home Manager SSH config is allowed to replace this temporary file.
 - Verify the personal GitHub SSH alias: `ssh -T github.com-personal`.
+- Verify the RollnRoll GitHub SSH alias: `ssh -T github.com-rollnroll`.
 - Verify personal Git identity selection in `~/personal` repositories: `git config --show-origin user.email`.
 - Add any non-personal Git/SSH identities locally after install; keep those out of this public repository.
 - Run `sudo nixos-rebuild switch --flake github:jbb494/nixos#evo15` if you are still on the minimal bootstrap configuration.

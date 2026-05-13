@@ -1,4 +1,5 @@
 { inputs
+, config
 , lib
 , pkgs
 , ...
@@ -304,7 +305,10 @@ in
 {
   imports = [
     ./hyprland.nix
+    inputs.rollnroll-devtools.homeManagerModules.default
   ];
+
+  programs.rollnroll-devtools.enable = true;
 
   home = {
     username = "jbellavista";
@@ -423,14 +427,23 @@ in
   programs.ssh = {
     enable = true;
     enableDefaultConfig = false;
-    includes = [ "~/.ssh/config.local" ];
-    matchBlocks."github.com-personal" = {
-      hostname = "github.com";
-      user = "git";
-      identityFile = "~/.ssh/id_ed25519_personal";
-      identitiesOnly = true;
+    matchBlocks = {
+      "github.com-personal" = {
+        hostname = "github.com";
+        user = "git";
+        identityFile = "~/.ssh/id_ed25519_personal";
+        identitiesOnly = true;
+      };
+      "github.com-rollnroll" = {
+        hostname = "github.com";
+        user = "git";
+        identityFile = "~/.ssh/id_ed25519_rollnroll";
+        identitiesOnly = true;
+      };
     };
   };
+
+  home.file.".ssh/config".force = true;
 
   programs.rofi = {
     enable = true;
@@ -489,6 +502,7 @@ in
 
   programs.zsh = {
     enable = true;
+    dotDir = config.home.homeDirectory;
     autosuggestion.enable = true;
     enableCompletion = true;
     shellAliases = {

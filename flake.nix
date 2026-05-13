@@ -18,6 +18,8 @@
       url = "github:jbb494/nvim";
       flake = false;
     };
+
+    rollnroll-devtools.url = "git+ssh://git@github.com-rollnroll/joan-lgtm/devtools.git";
   };
 
   outputs = inputs@{ self, nixpkgs, disko, home-manager, ... }:
