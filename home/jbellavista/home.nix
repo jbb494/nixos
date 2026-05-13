@@ -308,7 +308,10 @@ in
     inputs.rollnroll-devtools.homeManagerModules.default
   ];
 
-  programs.rollnroll-devtools.enable = true;
+  programs.rollnroll-devtools = {
+    enable = true;
+    enableZshIntegration = false;
+  };
 
   home = {
     username = "jbellavista";
@@ -505,56 +508,66 @@ in
     dotDir = config.home.homeDirectory;
     autosuggestion.enable = true;
     enableCompletion = true;
+    envExtra = ''
+      setopt no_global_rcs
+    '';
     shellAliases = {
       ta = "tmux attach";
       v = "nvim";
     };
     syntaxHighlighting.enable = true;
-    initContent = ''
-      bindkey -v
-      bindkey -M viins '^P' history-beginning-search-backward
-      bindkey -M viins '^N' history-beginning-search-forward
+    initContent = lib.mkMerge [
+      (lib.mkOrder 550 ''
+        path=("$HOME/rollnroll/devtools/bin" $path)
+        fpath=("$HOME/rollnroll/devtools/completions" $fpath)
+      '')
+      (lib.mkOrder 1000 ''
+        bindkey -v
+        bindkey -M viins '^P' history-beginning-search-backward
+        bindkey -M viins '^N' history-beginning-search-forward
+        PROMPT='λ > '
 
-      ${lib.optionalString (pkgs ? mise) ''eval "$(${pkgs.mise}/bin/mise activate zsh)"''}
+        ${lib.optionalString (pkgs ? mise) ''eval "$(${pkgs.mise}/bin/mise activate zsh)"''}
 
-      opencode() {
-        local profile=""
+        opencode() {
+          local profile=""
 
-        case "$PWD/" in
-          "$HOME/personal/"*)
-            local dir="$PWD"
-            while [[ "$dir/" == "$HOME/personal/"* ]]; do
-              if [[ -e "$dir/.opencode-default" ]]; then
-                command opencode "$@"
-                return
-              fi
+          case "$PWD/" in
+            "$HOME/personal/"*)
+              local dir="$PWD"
+              while [[ "$dir/" == "$HOME/personal/"* ]]; do
+                if [[ -e "$dir/.opencode-default" ]]; then
+                  command opencode "$@"
+                  return
+                fi
 
-              [[ "$dir" == "$HOME/personal" ]] && break
-              dir="${dir:h}"
-            done
-            profile="personal"
-            ;;
-        esac
+                [[ "$dir" == "$HOME/personal" ]] && break
+                dir="''${dir:h}"
+              done
+              profile="personal"
+              ;;
+          esac
 
-        if [[ -z "$profile" ]]; then
-          command opencode "$@"
-          return
+          if [[ -z "$profile" ]]; then
+            command opencode "$@"
+            return
+          fi
+
+          XDG_DATA_HOME="$HOME/.local/share/opencode-profiles/$profile/data" \
+            XDG_STATE_HOME="$HOME/.local/state/opencode-profiles/$profile" \
+            XDG_CACHE_HOME="$HOME/.cache/opencode-profiles/$profile" \
+            command opencode "$@"
+        }
+
+        if [[ -f "$HOME/.cargo/env" ]]; then
+          source "$HOME/.cargo/env"
         fi
 
-        XDG_DATA_HOME="$HOME/.local/share/opencode-profiles/$profile/data" \
-          XDG_STATE_HOME="$HOME/.local/state/opencode-profiles/$profile" \
-          XDG_CACHE_HOME="$HOME/.cache/opencode-profiles/$profile" \
-          command opencode "$@"
-      }
-
-      if [[ -f "$HOME/.cargo/env" ]]; then
-        source "$HOME/.cargo/env"
-      fi
-
-      if [[ -f "$HOME/.zsh_local" ]]; then
-        source "$HOME/.zsh_local"
-      fi
-    '';
+        if [[ -f "$HOME/.zsh_local" ]]; then
+          source "$HOME/.zsh_local"
+        fi
+      '')
+    ];
   };
 
   gtk = {

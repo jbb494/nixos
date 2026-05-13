@@ -41,7 +41,10 @@
   systemd.services.NetworkManager-wait-online.enable = false;
 
   programs = {
-    zsh.enable = true;
+    zsh = {
+      enable = true;
+      enableCompletion = false;
+    };
     nix-ld.enable = true;
   };
 
