@@ -5,6 +5,8 @@
 }:
 
 let
+  tms = lib.getExe pkgs.tmux-sessionizer;
+
   screenshot-full = pkgs.writeShellApplication {
     name = "screenshot-full";
     runtimeInputs = with pkgs; [
@@ -100,6 +102,77 @@ let
       exec "$@"
     '';
   };
+
+  tms-app = pkgs.writeShellApplication {
+    name = "tms-app";
+    runtimeInputs = with pkgs; [
+      coreutils
+      ghostty
+      hyprland
+      jq
+      tmux
+    ];
+    text = ''
+      set -euo pipefail
+
+      tms_config_dir="''${XDG_RUNTIME_DIR:-/tmp}/tms-app"
+      tms_config="$tms_config_dir/config.toml"
+      mkdir -p "$tms_config_dir"
+      rm -f "$tms_config"
+      install -m 600 /dev/null "$tms_config"
+
+      shopt -s nullglob
+      worktrees=()
+      for git_file in "$HOME"/rollnroll/*-worktrees/*/.git "$HOME"/rollnroll/worktrees/*/.git; do
+        [[ -f "$git_file" ]] || continue
+        worktrees+=("$(dirname "$git_file")")
+      done
+      shopt -u nullglob
+
+      if [[ ''${#worktrees[@]} -gt 0 ]]; then
+        printf 'bookmarks = [\n' >> "$tms_config"
+        for worktree in "''${worktrees[@]}"; do
+          printf '  %s,\n' "$(printf '%s' "$worktree" | jq -Rs .)" >> "$tms_config"
+        done
+        printf ']\n\n' >> "$tms_config"
+      fi
+
+      while IFS= read -r line || [[ -n "$line" ]]; do
+        printf '%s\n' "$line" >> "$tms_config"
+      done < "$HOME/.config/tms/config.toml"
+
+      tmux_command=(tmux)
+      tmux_socket="''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/tmux-$(id -u)/default"
+      if [[ -S "$tmux_socket" ]]; then
+        tmux_command=(tmux -S "$tmux_socket")
+      fi
+
+      client="$("''${tmux_command[@]}" list-clients -F '#{client_activity} #{client_tty}' 2>/dev/null \
+        | sort -rn \
+        | while read -r _ tty; do printf '%s' "$tty"; break; done || true)"
+
+      if [[ -n "$client" ]]; then
+        address="$(hyprctl clients -j 2>/dev/null | jq -r '
+          map(select(
+            (.class // "") == "com.mitchellh.ghostty" or
+            (.initialClass // "") == "com.mitchellh.ghostty"
+          ))
+          | sort_by(.focusHistoryID // 999999)
+          | .[0].address // empty
+        ')"
+
+        if [[ -n "$address" ]]; then
+          hyprctl dispatch focuswindow "address:$address" >/dev/null || true
+        fi
+
+        if "''${tmux_command[@]}" display-popup -t "$client" -E "env TMS_CONFIG_FILE=$tms_config ${tms}"; then
+          exit 0
+        fi
+      fi
+
+      exec ghostty -e env TMS_CONFIG_FILE="$tms_config" ${tms}
+    '';
+  };
 in
 
 {
@@ -162,10 +235,10 @@ in
       hypr-summon
       screenshot-full
       screenshot-region
+      tms-app
     ]
     ++ lib.optional (pkgs ? mise) pkgs.mise
-    ++ lib.optional (pkgs ? skaffold) pkgs.skaffold
-    ++ lib.optional (pkgs ? tmux-sessionizer) pkgs.tmux-sessionizer;
+    ++ lib.optional (pkgs ? skaffold) pkgs.skaffold;
   };
 
   programs.home-manager.enable = true;
@@ -270,13 +343,13 @@ in
       bind h select-pane -L
       bind l select-pane -R
 
-      set -g status-right ' #(tms sessions)'
+      set -g status-right ' #(${tms} sessions)'
+      unbind-key F
       bind -r '(' switch-client -p\; refresh-client -S
       bind -r ')' switch-client -n\; refresh-client -S
-      bind -r N display-popup -E 'TMS_CONFIG_FILE=~/.config/tms/config-nvim-repos.toml tms'
-      bind -r F display-popup -E 'tms'
-      bind -r f display-popup -E 'tms switch'
-      bind -r w display-popup -E 'tms windows'
+      bind -r N display-popup -E 'TMS_CONFIG_FILE=~/.config/tms/config-nvim-repos.toml ${tms}'
+      bind -r f display-popup -E '${tms} switch'
+      bind -r w display-popup -E '${tms} windows'
       bind -r o last-window
       bind -r X kill-session
     '';
@@ -442,6 +515,20 @@ in
       Type=Application
       Categories=Utility;Graphics;
       Keywords=Screenshot;Screen;Capture;Region;Swappy;Grim;Slurp;
+    '';
+
+    "applications/tms.desktop".text = ''
+      [Desktop Entry]
+      Name=TMS
+      GenericName=Tmux Sessionizer
+      Comment=Open tmux-sessionizer in the active tmux client
+      Exec=${tms-app}/bin/tms-app
+      Icon=utilities-terminal
+      StartupNotify=false
+      Terminal=false
+      Type=Application
+      Categories=Development;Utility;TerminalEmulator;
+      Keywords=tms;tmux;sessionizer;worktree;terminal;ghostty;
     '';
   };
 

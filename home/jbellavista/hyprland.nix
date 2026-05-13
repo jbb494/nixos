@@ -191,7 +191,6 @@ in
         "$mod, mouse:274, killactive"
         "$mod, F, fullscreen"
         "$mod SHIFT, Space, togglefloating"
-        "$mod, R, submap, resize"
         "$mod, E, exec, ${lockAndSuspend}/bin/lock-and-suspend"
         "$mod, period, exit"
         "$mod, F12, exec, hyprctl switchxkblayout all next"
