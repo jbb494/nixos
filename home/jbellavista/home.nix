@@ -123,7 +123,7 @@ let
 
       shopt -s nullglob
       worktrees=()
-      for git_file in "$HOME"/rollnroll/*-worktrees/*/.git "$HOME"/rollnroll/worktrees/*/.git; do
+      for git_file in "$HOME"/*/*-worktrees/*/.git "$HOME"/*/worktrees/*/.git; do
         [[ -f "$git_file" ]] || continue
         worktrees+=("$(dirname "$git_file")")
       done
@@ -199,6 +199,7 @@ in
       bat
       brightnessctl
       bun
+      caddy
       cmake
       delta
       discord
@@ -375,6 +376,36 @@ in
       bindkey -M viins '^N' history-beginning-search-forward
 
       ${lib.optionalString (pkgs ? mise) ''eval "$(${pkgs.mise}/bin/mise activate zsh)"''}
+
+      opencode() {
+        local profile=""
+
+        case "$PWD/" in
+          "$HOME/personal/"*)
+            local dir="$PWD"
+            while [[ "$dir/" == "$HOME/personal/"* ]]; do
+              if [[ -e "$dir/.opencode-default" ]]; then
+                command opencode "$@"
+                return
+              fi
+
+              [[ "$dir" == "$HOME/personal" ]] && break
+              dir="${dir:h}"
+            done
+            profile="personal"
+            ;;
+        esac
+
+        if [[ -z "$profile" ]]; then
+          command opencode "$@"
+          return
+        fi
+
+        XDG_DATA_HOME="$HOME/.local/share/opencode-profiles/$profile/data" \
+          XDG_STATE_HOME="$HOME/.local/state/opencode-profiles/$profile" \
+          XDG_CACHE_HOME="$HOME/.cache/opencode-profiles/$profile" \
+          command opencode "$@"
+      }
 
       if [[ -f "$HOME/.cargo/env" ]]; then
         source "$HOME/.cargo/env"
