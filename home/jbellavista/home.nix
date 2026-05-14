@@ -416,9 +416,10 @@ in
       init.defaultBranch = "main";
       push = {
         autoSetupRemote = true;
-        default = "simple";
+        default = "current";
         followTags = true;
       };
+      remote.pushDefault = "origin";
       rerere = {
         autoupdate = true;
         enabled = true;
