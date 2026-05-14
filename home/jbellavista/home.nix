@@ -333,6 +333,7 @@ in
       brightnessctl
       bun
       caddy
+      claude-code
       cmake
       delta
       discord
