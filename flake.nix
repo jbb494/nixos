@@ -67,17 +67,6 @@
         ];
       };
 
-      nixosConfigurations.desktop-minimal = nixpkgs.lib.nixosSystem {
-        inherit system;
-        specialArgs = {
-          inherit inputs self xkeyboardConfigErgodox;
-        };
-        modules = [
-          disko.nixosModules.disko
-          ./hosts/desktop/configuration-minimal.nix
-        ];
-      };
-
       packages.${system} = {
         inherit xkeyboardConfigErgodox;
         jbellavista-shell = pkgs.callPackage ./packages/jbellavista-shell.nix {
