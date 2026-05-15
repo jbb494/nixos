@@ -135,7 +135,7 @@ in
 
       input = {
         kb_layout = "es,us";
-        kb_variant = "cat,";
+        kb_variant = ",";
         kb_options = "grp:alt_shift_toggle";
         follow_mouse = 0;
         touchpad.natural_scroll = true;
@@ -153,6 +153,24 @@ in
         {
           name = "zsa-technology-labs-ergodox-ez-keyboard";
           kb_layout = "ergodox-dvorak,us";
+          kb_variant = ",";
+          kb_options = "grp:alt_shift_toggle";
+        }
+        {
+          name = "at-translated-set-2-keyboard";
+          kb_layout = "es,us";
+          kb_variant = "cat,";
+          kb_options = "grp:alt_shift_toggle";
+        }
+        {
+          name = "sonix-calibur-v2-te";
+          kb_layout = "es,us";
+          kb_variant = ",";
+          kb_options = "grp:alt_shift_toggle";
+        }
+        {
+          name = "sonix-calibur-v2-te-2";
+          kb_layout = "es,us";
           kb_variant = ",";
           kb_options = "grp:alt_shift_toggle";
         }

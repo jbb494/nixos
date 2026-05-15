@@ -59,7 +59,7 @@ sudo env NIXOS_FLAKE_REF=github:jbb494/nixos#evo15 nix --experimental-features "
 - If creating a host-specific SSH key, use `ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_<host> -C "jbellavista@<host>"`, then copy only the public key with `ssh-copy-id`.
 - RollnRoll integration is optional. The default flake uses a local stub and does not need RollnRoll SSH access.
 - If enabling RollnRoll integration, restore the RollnRoll SSH private key to `~/.ssh/id_ed25519_rollnroll` and update permissions with `chmod 600 ~/.ssh/id_ed25519_rollnroll`.
-- Before a RollnRoll-enabled `nixos-rebuild switch`, create a temporary bootstrap `~/.ssh/config` entry for the private devtools input:
+- If using the SSH alias form instead of `github.com`, create a temporary bootstrap `~/.ssh/config` entry for the private devtools input:
 
   ```sshconfig
   Host github.com-rollnroll
@@ -70,7 +70,7 @@ sudo env NIXOS_FLAKE_REF=github:jbb494/nixos#evo15 nix --experimental-features "
   ```
 
   Home Manager manages this SSH host after the first successful RollnRoll-enabled switch, but Nix needs the bootstrap entry before it can fetch private inputs. The managed Home Manager SSH config is allowed to replace this temporary file.
-- Build with the private RollnRoll input only on machines that should use it: `sudo nixos-rebuild switch --flake github:jbb494/nixos#evo15 --override-input rollnroll-devtools git+ssh://git@github.com-rollnroll/joan-lgtm/devtools.git`.
+- Build with the private RollnRoll input only on machines that should use it: `sudo env GIT_SSH_COMMAND='ssh -i /home/jbellavista/.ssh/id_ed25519_rollnroll -o IdentitiesOnly=yes' nixos-rebuild switch --flake .#evo15 --override-input rollnroll-devtools git+ssh://git@github.com/joan-lgtm/devtools.git`.
 - Verify the personal GitHub SSH alias: `ssh -T github.com-personal`.
 - If RollnRoll integration is enabled, verify the RollnRoll GitHub SSH alias: `ssh -T github.com-rollnroll`.
 - Verify personal Git identity selection in `~/personal` repositories: `git config --show-origin user.email`.
