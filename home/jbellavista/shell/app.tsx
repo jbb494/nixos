@@ -187,8 +187,8 @@ const cpu = Variable('CPU --%').poll(2000, 'cat /proc/stat', (output: string) =>
   return `CPU ${String(Math.round((1 - idleDelta / totalDelta) * 100)).padStart(3, ' ')}%`;
 });
 
-const Widget = ({ label, className = '' }: { label: string | ReturnType<typeof bind>; className?: string }) => (
-  <box className={`widget ${className}`}>
+const Widget = ({ label, className = '', visible = true }: { label: string | ReturnType<typeof bind>; className?: string; visible?: boolean | ReturnType<typeof bind> }) => (
+  <box className={`widget ${className}`} visible={visible}>
     <label label={label} />
   </box>
 );
@@ -1340,6 +1340,10 @@ const Bar = (monitor: number) => (
             <Widget label={bind(cpu)} />
             <Widget label={bind(ram).as((value) => `RAM ${value}`)} />
             <Widget
+              visible={Variable.derive(
+                [bind(battery, 'isBattery'), bind(battery, 'isPresent')],
+                (isBattery, isPresent) => isBattery && isPresent,
+              )()}
               label={Variable.derive(
                 [bind(battery, 'percentage'), bind(battery, 'charging')],
                 (percentage, charging) => `${charging ? '󰂄' : percentage < 0.18 ? '󰁺' : '󰁹'} ${Math.round(percentage * 100)}%`,

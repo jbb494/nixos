@@ -1,6 +1,7 @@
 { inputs
 , config
 , lib
+, opencodePersonalProfile
 , pkgs
 , ...
 }:
@@ -176,7 +177,7 @@ let
           exec "''${tmux_command[@]}" display-popup -t "$client" -E "$0 select $*"
         fi
 
-        exec ghostty -e "$0" select "$@"
+        exec ghostty -e env TMUX_PROJECTS_KEEP_SHELL=1 "$0" select "$@"
       }
 
       collect_entries() {
@@ -272,6 +273,11 @@ let
         if [[ -n "''${TMUX:-}" ]]; then
           "''${tmux_command[@]}" switch-client -t "$session_name"
           exit 0
+        fi
+
+        if [[ "''${TMUX_PROJECTS_KEEP_SHELL:-0}" == "1" ]]; then
+          "''${tmux_command[@]}" attach-session -t "$session_name"
+          exec "''${SHELL:-${pkgs.zsh}/bin/zsh}" -l
         fi
 
         exec "''${tmux_command[@]}" attach-session -t "$session_name"
@@ -442,6 +448,10 @@ in
       markup = true;
       actions = true;
       on-button-left = "dismiss";
+      "app-name=Blueman".invisible = true;
+      "app-name=blueman".invisible = true;
+      "app-name=Bluetooth".invisible = true;
+      "desktop-entry=blueman".invisible = true;
     };
   };
 
@@ -600,35 +610,37 @@ in
 
         ${lib.optionalString (pkgs ? mise) ''eval "$(${pkgs.mise}/bin/mise activate zsh)"''}
 
-        opencode() {
-          local profile=""
+        ${lib.optionalString opencodePersonalProfile ''
+          opencode() {
+            local profile=""
 
-          case "$PWD/" in
-            "$HOME/personal/"*)
-              local dir="$PWD"
-              while [[ "$dir/" == "$HOME/personal/"* ]]; do
-                if [[ -e "$dir/.opencode-default" ]]; then
-                  command opencode "$@"
-                  return
-                fi
+            case "$PWD/" in
+              "$HOME/personal/"*)
+                local dir="$PWD"
+                while [[ "$dir/" == "$HOME/personal/"* ]]; do
+                  if [[ -e "$dir/.opencode-default" ]]; then
+                    command opencode "$@"
+                    return
+                  fi
 
-                [[ "$dir" == "$HOME/personal" ]] && break
-                dir="''${dir:h}"
-              done
-              profile="personal"
-              ;;
-          esac
+                  [[ "$dir" == "$HOME/personal" ]] && break
+                  dir="''${dir:h}"
+                done
+                profile="personal"
+                ;;
+            esac
 
-          if [[ -z "$profile" ]]; then
-            command opencode "$@"
-            return
-          fi
+            if [[ -z "$profile" ]]; then
+              command opencode "$@"
+              return
+            fi
 
-          XDG_DATA_HOME="$HOME/.local/share/opencode-profiles/$profile/data" \
-            XDG_STATE_HOME="$HOME/.local/state/opencode-profiles/$profile" \
-            XDG_CACHE_HOME="$HOME/.cache/opencode-profiles/$profile" \
-            command opencode "$@"
-        }
+            XDG_DATA_HOME="$HOME/.local/share/opencode-profiles/$profile/data" \
+              XDG_STATE_HOME="$HOME/.local/state/opencode-profiles/$profile" \
+              XDG_CACHE_HOME="$HOME/.cache/opencode-profiles/$profile" \
+              command opencode "$@"
+          }
+        ''}
 
         if [[ -f "$HOME/.cargo/env" ]]; then
           source "$HOME/.cargo/env"
@@ -703,6 +715,7 @@ in
       Name=New Incognito Window
       Exec=${pkgs.google-chrome}/bin/google-chrome-stable --incognito
     '';
+    "applications/google-chrome.desktop".force = true;
 
     "applications/blueman-manager.desktop".text = ''
       [Desktop Entry]
@@ -715,6 +728,7 @@ in
       Type=Application
       Categories=GTK;GNOME;Settings;HardwareSettings;
     '';
+    "applications/blueman-manager.desktop".force = true;
 
     "applications/org.pulseaudio.pavucontrol.desktop".text = ''
       [Desktop Entry]
@@ -730,6 +744,7 @@ in
       Categories=AudioVideo;Audio;Mixer;GTK;Settings;X-XFCE-SettingsDialog;X-XFCE-HardwareSettings;
       Keywords=pavucontrol;PulseAudio;Microphone;Volume;Audio;Mixer;Output;Input;Devices;Playback;Recording;
     '';
+    "applications/org.pulseaudio.pavucontrol.desktop".force = true;
 
     "applications/nm-connection-editor.desktop".text = ''
       [Desktop Entry]
@@ -743,6 +758,7 @@ in
       Categories=GNOME;GTK;Settings;X-GNOME-NetworkSettings;
       Keywords=Network;Connections;Wi-Fi;Wifi;Ethernet;
     '';
+    "applications/nm-connection-editor.desktop".force = true;
 
     "applications/screenshot-full.desktop".text = ''
       [Desktop Entry]
@@ -757,6 +773,7 @@ in
       Categories=Utility;Graphics;
       Keywords=Screenshot;Screen;Capture;Swappy;Grim;
     '';
+    "applications/screenshot-full.desktop".force = true;
 
     "applications/screenshot-region.desktop".text = ''
       [Desktop Entry]
@@ -771,6 +788,7 @@ in
       Categories=Utility;Graphics;
       Keywords=Screenshot;Screen;Capture;Region;Swappy;Grim;Slurp;
     '';
+    "applications/screenshot-region.desktop".force = true;
 
     "applications/tmux-projects.desktop".text = ''
       [Desktop Entry]
@@ -785,6 +803,7 @@ in
       Categories=Development;Utility;TerminalEmulator;
       Keywords=tmux;projects;worktree;terminal;ghostty;
     '';
+    "applications/tmux-projects.desktop".force = true;
   };
 
   xdg.configFile = {

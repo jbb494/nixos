@@ -44,7 +44,10 @@
   home-manager = {
     useGlobalPkgs = true;
     useUserPackages = true;
-    extraSpecialArgs = { inherit inputs; };
+    extraSpecialArgs = {
+      inherit inputs;
+      opencodePersonalProfile = true;
+    };
     users.jbellavista = import ../../home/jbellavista/home.nix;
   };
 
