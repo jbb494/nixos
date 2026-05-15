@@ -17,4 +17,6 @@
     fwupd.enable = true;
     libinput.enable = true;
   };
+
+  programs.steam.enable = true;
 }
