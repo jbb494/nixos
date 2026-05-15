@@ -1,0 +1,640 @@
+.shell-bar {
+  background: transparent;
+  color: #cdd6f4;
+  font-family: "JetBrainsMono Nerd Font", monospace;
+  font-size: 11px;
+}
+
+.audio-dropdown {
+  background: transparent;
+  color: #cdd6f4;
+  font-family: "JetBrainsMono Nerd Font", monospace;
+  font-size: 12px;
+}
+
+.network-dropdown {
+  background: transparent;
+  color: #cdd6f4;
+  font-family: "JetBrainsMono Nerd Font", monospace;
+  font-size: 12px;
+}
+
+.bluetooth-dropdown {
+  background: transparent;
+  color: #cdd6f4;
+  font-family: "JetBrainsMono Nerd Font", monospace;
+  font-size: 12px;
+}
+
+.media-dropdown {
+  background: transparent;
+  color: #cdd6f4;
+  font-family: "JetBrainsMono Nerd Font", monospace;
+  font-size: 12px;
+}
+
+.click-catcher {
+  background: transparent;
+}
+
+.bar-shell {
+  margin: 6px 10px 0;
+  padding: 4px 7px;
+  border-radius: 12px;
+  background: rgba(24, 24, 37, 0.92);
+  border: 1px solid rgba(205, 214, 244, 0.16);
+}
+
+.section {
+  min-height: 26px;
+}
+
+.widget {
+  margin: 0 3px;
+  padding: 4px 9px;
+  border-radius: 9px;
+  background: rgba(49, 50, 68, 0.72);
+  border: 0;
+  color: #cdd6f4;
+}
+
+.widget.dim {
+  color: #a6adc8;
+}
+
+.widget:hover {
+  background: rgba(69, 71, 90, 0.92);
+}
+
+.group-gap {
+  min-width: 8px;
+}
+
+.widget.state-good {
+  color: #a6e3a1;
+  background: rgba(49, 50, 68, 0.78);
+}
+
+.widget.state-idle {
+  color: #89b4fa;
+}
+
+.widget.state-warn {
+  color: #f9e2af;
+  background: rgba(69, 71, 90, 0.82);
+}
+
+.widget.state-bad {
+  color: #f38ba8;
+  background: rgba(69, 71, 90, 0.82);
+}
+
+.widget.state-off {
+  color: #6c7086;
+}
+
+.workspaces {
+  margin: 0 3px;
+  padding: 2px;
+  border-radius: 10px;
+  background: rgba(49, 50, 68, 0.48);
+}
+
+.workspace-button {
+  margin: 0 1px;
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 8px;
+  color: #6c7086;
+  background: transparent;
+}
+
+.workspace-button.occupied {
+  color: #cdd6f4;
+  background: rgba(69, 71, 90, 0.58);
+}
+
+.workspace-button.active {
+  color: #1e1e2e;
+  background: #89b4fa;
+}
+
+.workspace-button.fullscreen:not(.active) {
+  color: #f9e2af;
+}
+
+.workspace-button:hover {
+  color: #cdd6f4;
+  background: rgba(88, 91, 112, 0.82);
+}
+
+.tray {
+  margin: 0 3px;
+  padding: 2px 4px;
+  border-radius: 9px;
+  background: rgba(49, 50, 68, 0.48);
+}
+
+.tray-item {
+  margin: 0 1px;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 7px;
+  color: #cdd6f4;
+  background: transparent;
+}
+
+.tray-item.attention {
+  background: rgba(249, 226, 175, 0.18);
+}
+
+.tray-icon {
+  font-size: 14px;
+}
+
+.dropdown-shell {
+  padding: 14px;
+  border-radius: 14px;
+  background: rgba(24, 24, 37, 0.96);
+  border: 1px solid rgba(205, 214, 244, 0.18);
+  min-width: 230px;
+}
+
+.audio-menu {
+  min-width: 420px;
+  padding: 10px;
+}
+
+.network-menu {
+  min-width: 360px;
+  padding: 10px;
+}
+
+.bluetooth-menu {
+  min-width: 360px;
+  padding: 10px;
+}
+
+.media-menu {
+  min-width: 360px;
+  padding: 10px;
+}
+
+.media-menu-header {
+  margin-bottom: 6px;
+}
+
+.media-menu-title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.media-menu-summary,
+.media-now-subtitle,
+.media-section-title,
+.media-player-subtitle {
+  color: #a6adc8;
+}
+
+.media-now {
+  padding: 9px;
+  border-radius: 12px;
+  background: rgba(137, 180, 250, 0.10);
+  border: 1px solid rgba(137, 180, 250, 0.22);
+}
+
+.media-cover {
+  min-width: 68px;
+  min-height: 68px;
+  margin-right: 10px;
+  border-radius: 10px;
+  background-color: rgba(49, 50, 68, 0.72);
+  background-size: cover;
+  background-position: center;
+}
+
+.media-now-content {
+  min-width: 0;
+}
+
+.media-now-title {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.media-controls {
+  margin-top: 9px;
+}
+
+.media-control {
+  margin-right: 6px;
+  padding: 5px 11px;
+  border: 0;
+  border-radius: 9px;
+  color: #cdd6f4;
+  background: rgba(49, 50, 68, 0.72);
+}
+
+.media-control:hover {
+  background: rgba(69, 71, 90, 0.76);
+}
+
+.media-empty {
+  color: #6c7086;
+  padding: 6px 2px;
+}
+
+.bluetooth-menu-header,
+.bluetooth-section-heading {
+  margin-bottom: 6px;
+}
+
+.bluetooth-menu-title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.bluetooth-menu-summary,
+.bluetooth-section-title,
+.bluetooth-device-meta {
+  color: #a6adc8;
+}
+
+.bluetooth-section {
+  margin-top: 6px;
+}
+
+.bluetooth-section-title {
+  margin: 0 0 3px 2px;
+  font-weight: 700;
+}
+
+.bluetooth-device {
+  margin-top: 4px;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 10px;
+  color: #cdd6f4;
+  background: rgba(49, 50, 68, 0.42);
+}
+
+.bluetooth-device.active {
+  background: rgba(137, 180, 250, 0.12);
+  border-color: rgba(137, 180, 250, 0.34);
+}
+
+.bluetooth-device:hover,
+.bluetooth-refresh:hover {
+  background: rgba(69, 71, 90, 0.76);
+}
+
+.bluetooth-device-icon {
+  min-width: 24px;
+  margin-right: 8px;
+}
+
+.bluetooth-device-name {
+  margin-right: 8px;
+}
+
+.bluetooth-switch {
+  margin-right: 8px;
+}
+
+.bluetooth-refresh {
+  padding: 2px 7px;
+  border: 0;
+  border-radius: 8px;
+  color: #cdd6f4;
+  background: rgba(49, 50, 68, 0.62);
+}
+
+.bluetooth-device-scroll {
+  margin-top: 4px;
+}
+
+.bluetooth-empty {
+  color: #6c7086;
+  padding: 6px 2px;
+}
+
+.network-menu-header,
+.network-section-heading {
+  margin-bottom: 6px;
+}
+
+.network-menu-title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.network-menu-summary,
+.network-section-title,
+.network-card-subtitle,
+.network-ap-meta {
+  color: #a6adc8;
+}
+
+.network-section {
+  margin-top: 6px;
+}
+
+.network-section-title {
+  margin: 0 0 3px 2px;
+  font-weight: 700;
+}
+
+.network-card,
+.network-ap,
+.network-forget {
+  margin-top: 4px;
+  padding: 7px 9px;
+  border-radius: 10px;
+  background: rgba(49, 50, 68, 0.42);
+  border: 1px solid rgba(205, 214, 244, 0.08);
+  color: #cdd6f4;
+}
+
+.network-ap,
+.network-forget {
+  border: 0;
+}
+
+.network-ap-row {
+  margin-top: 4px;
+}
+
+.network-ap-row .network-ap,
+.network-ap-row .network-forget {
+  margin-top: 0;
+}
+
+.network-forget {
+  margin-left: 4px;
+  color: #f38ba8;
+  background: rgba(49, 50, 68, 0.42);
+}
+
+.network-card.active,
+.network-ap.active {
+  background: rgba(166, 227, 161, 0.12);
+  border-color: rgba(166, 227, 161, 0.34);
+}
+
+.network-ap.known:not(.active) {
+  background: rgba(137, 180, 250, 0.10);
+}
+
+.network-ap.staged {
+  background: rgba(137, 180, 250, 0.12);
+  border-color: rgba(137, 180, 250, 0.34);
+}
+
+.network-ap:hover,
+.network-forget:hover,
+.network-refresh:hover {
+  background: rgba(69, 71, 90, 0.76);
+}
+
+.network-refresh.active {
+  color: #1e1e2e;
+  background: #89b4fa;
+}
+
+.network-card-icon,
+.network-ap-icon {
+  min-width: 24px;
+  margin-right: 8px;
+}
+
+.network-card-title,
+.network-ap-name {
+  margin-right: 8px;
+}
+
+.network-switch {
+  margin-right: 8px;
+}
+
+.network-refresh {
+  padding: 2px 7px;
+  border: 0;
+  border-radius: 8px;
+  color: #cdd6f4;
+  background: rgba(49, 50, 68, 0.62);
+}
+
+.network-ap-scroll {
+  margin-top: 4px;
+}
+
+.network-password-row {
+  margin-top: 7px;
+}
+
+.network-password-entry {
+  margin-left: 31px;
+  margin-right: 6px;
+  padding: 4px 7px;
+  border-radius: 8px;
+  color: #cdd6f4;
+  background: rgba(24, 24, 37, 0.72);
+  border: 1px solid rgba(205, 214, 244, 0.12);
+}
+
+.network-password-action,
+.network-password-cancel {
+  margin-left: 4px;
+  padding: 4px 7px;
+  border: 0;
+  border-radius: 8px;
+  color: #cdd6f4;
+  background: rgba(49, 50, 68, 0.72);
+}
+
+.network-password-action:hover,
+.network-password-cancel:hover {
+  background: rgba(69, 71, 90, 0.92);
+}
+
+.network-error {
+  margin: 5px 0 0 31px;
+  color: #f38ba8;
+}
+
+.network-empty {
+  color: #6c7086;
+  padding: 6px 2px;
+}
+
+.audio-menu-header {
+  margin-bottom: 5px;
+}
+
+.audio-menu-title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.audio-menu-summary {
+  color: #a6adc8;
+}
+
+.audio-section {
+  margin-top: 6px;
+}
+
+.audio-section-title {
+  margin: 0 0 3px 2px;
+  color: #a6adc8;
+  font-weight: 700;
+}
+
+.audio-card {
+  margin-top: 4px;
+  border-radius: 10px;
+  background: rgba(49, 50, 68, 0.42);
+  border: 1px solid rgba(205, 214, 244, 0.08);
+}
+
+.audio-card-content {
+  padding: 3px;
+}
+
+.audio-card:hover {
+  background: rgba(69, 71, 90, 0.58);
+  border-color: rgba(205, 214, 244, 0.16);
+}
+
+.audio-card.active {
+  background: rgba(137, 180, 250, 0.12);
+  border-color: rgba(137, 180, 250, 0.34);
+}
+
+.audio-card.active:hover {
+  background: rgba(137, 180, 250, 0.18);
+}
+
+.audio-device,
+.audio-icon-button {
+  border: 0;
+  color: #cdd6f4;
+  border-radius: 9px;
+}
+
+.audio-device {
+  padding: 2px 5px;
+  background: transparent;
+}
+
+.audio-icon-button:hover {
+  background: rgba(69, 71, 90, 0.92);
+}
+
+.audio-device.active {
+  background: transparent;
+}
+
+.audio-device-icon {
+  min-width: 22px;
+  margin-right: 5px;
+}
+
+.audio-device-name {
+  margin-right: 8px;
+}
+
+.audio-device-default {
+  color: #89b4fa;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.audio-row {
+  margin: 1px 4px 1px;
+}
+
+.audio-icon-button {
+  margin-right: 7px;
+  padding: 1px 7px;
+}
+
+.audio-icon-button.muted {
+  color: #f38ba8;
+}
+
+.audio-row-title {
+  margin-bottom: 2px;
+  color: #cdd6f4;
+}
+
+.audio-slider-line {
+  min-height: 20px;
+}
+
+.audio-percent {
+  min-width: 42px;
+  margin-left: 6px;
+  color: #a6adc8;
+}
+
+.audio-profiles {
+  margin: 3px 5px 1px 31px;
+}
+
+.audio-profile-label {
+  margin-right: 6px;
+  color: #6c7086;
+  font-size: 10px;
+}
+
+.audio-profile-scroll {
+  min-height: 24px;
+}
+
+.audio-profile-scroll scrollbar {
+  min-height: 0;
+  opacity: 0;
+}
+
+.audio-profile {
+  margin-right: 4px;
+  padding: 1px 6px;
+  border: 0;
+  border-radius: 999px;
+  color: #a6adc8;
+  background: rgba(49, 50, 68, 0.62);
+  font-size: 10px;
+}
+
+.audio-profile:hover {
+  background: rgba(69, 71, 90, 0.92);
+}
+
+.audio-profile.active {
+  color: #1e1e2e;
+  background: #89b4fa;
+}
+
+.audio-slider trough {
+  min-height: 5px;
+  border-radius: 999px;
+  background: rgba(88, 91, 112, 0.82);
+}
+
+.audio-slider highlight {
+  border-radius: 999px;
+  background: #89b4fa;
+}
+
+.audio-slider slider {
+  min-width: 12px;
+  min-height: 12px;
+  border-radius: 999px;
+  background: #cdd6f4;
+}
+
+.audio-empty {
+  color: #6c7086;
+  padding: 4px 2px;
+}

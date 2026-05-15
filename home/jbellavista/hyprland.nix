@@ -1,4 +1,4 @@
-{ config, lib, pkgs, ... }:
+{ inputs, lib, pkgs, ... }:
 
 let
   terminal = "ghostty";
@@ -18,28 +18,16 @@ let
       systemctl suspend
     '';
   };
-  ramStatus = pkgs.writeShellApplication {
-    name = "hyprpanel-ram-status";
-    runtimeInputs = [ pkgs.gawk ];
-    text = ''
-      awk '
-        /^MemTotal:/ { total = $2 }
-        /^MemAvailable:/ { available = $2 }
-        END {
-          used = total - available
-          printf "{\"free\":\"%.1f\",\"used\":\"%.1f\",\"total\":\"%.1f\"}\n", available / 1048576, used / 1048576, total / 1048576
-        }
-      ' /proc/meminfo
-    '';
-  };
   hyprwhsprModel = pkgs.fetchurl {
     url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin";
     hash = "sha256-oDd5yG3zMjB19eeWyyzlAp8A7Ihp7uP9+4l6/jbG0AI=";
   };
-  rollnrollHyprpanelModules = config.programs.rollnroll-devtools.hyprpanel.customModules or { };
+  jbellavista-shell = pkgs.callPackage ../../packages/jbellavista-shell.nix {
+    rollnrollShellModule = inputs.rollnroll-devtools.shellModules.ags.rollnroll or null;
+  };
 in
 {
-  home.packages = [ pkgs.hyprlock pkgs.hyprpaper pkgs.hyprwhspr-rs ];
+  home.packages = [ jbellavista-shell pkgs.hyprlock pkgs.hyprpaper pkgs.hyprwhspr-rs ];
 
   xdg.dataFile."hyprwhspr-rs/models/ggml-base.en.bin".source = hyprwhsprModel;
 
@@ -56,29 +44,6 @@ in
       }
     }
   '';
-
-  xdg.configFile."hyprpanel/modules.json" = {
-    text = builtins.toJSON ({
-      "custom/ram" = {
-        icon = "";
-        label = "{free} GB";
-        tooltip = "{used} / {total} GB";
-        execute = lib.getExe ramStatus;
-        interval = 2000;
-      };
-    } // rollnrollHyprpanelModules);
-  };
-
-  xdg.configFile."hyprpanel/modules.scss" = {
-    text = ''
-      .cmodule-rollnroll {
-        label {
-          font-size: 1.08em;
-          font-weight: 700;
-        }
-      }
-    '';
-  };
 
   xdg.configFile."hypr/hyprpaper.conf".text = ''
     ${lib.concatMapStringsSep "\n\n" (monitor: ''
@@ -141,8 +106,8 @@ in
       ];
 
       exec-once = [
-        "${pkgs.hyprpanel}/bin/hyprpanel"
-        "blueman-applet"
+        "${jbellavista-shell}/bin/jbellavista-shell"
+        "${pkgs.mako}/bin/mako"
         "${pkgs.hyprpaper}/bin/hyprpaper"
       ];
 
@@ -285,56 +250,5 @@ in
       bind = , return, submap, reset
       submap = reset
     '';
-  };
-
-  programs.hyprpanel = {
-    enable = true;
-    systemd.enable = false;
-    settings = {
-      wallpaper.enable = false;
-
-      bar = {
-        layouts."*" = {
-          left = [ "workspaces" ];
-          middle = [ ];
-          right = [ "custom/rollnroll" "cpu" "custom/ram" "volume" "network" "bluetooth" "battery" "systray" "clock" "notifications" ];
-        };
-        launcher.icon = "";
-        volume.label = false;
-        network = {
-          label = false;
-          showWifiInfo = true;
-          truncation_size = 18;
-        };
-        bluetooth.label = false;
-        battery.label = true;
-        clock = {
-          format = "%H:%M";
-          showIcon = false;
-        };
-        workspaces = {
-          show_numbered = true;
-          show_icons = false;
-        };
-      };
-      theme = {
-        bar = {
-          scaling = 85;
-          floating = true;
-          opacity = 92;
-          transparent = false;
-          buttons = {
-            style = "default";
-            monochrome = false;
-            padding_y = "0.1rem";
-            y_margins = "0.25em";
-          };
-        };
-        font = {
-          name = "JetBrainsMono Nerd Font";
-          size = "11px";
-        };
-      };
-    };
   };
 }

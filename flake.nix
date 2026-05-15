@@ -57,16 +57,27 @@
 
       packages.${system} = {
         inherit xkeyboardConfigErgodox;
+        jbellavista-shell = pkgs.callPackage ./packages/jbellavista-shell.nix {
+          rollnrollShellModule = inputs.rollnroll-devtools.shellModules.ags.rollnroll or null;
+        };
         install-evo15 = pkgs.callPackage ./apps/install-evo15.nix {
           diskoPackage = disko.packages.${system}.disko;
           nixosInstallTools = pkgs.nixos-install-tools;
         };
       };
 
-      apps.${system}.install-evo15 = {
-        type = "app";
-        program = "${self.packages.${system}.install-evo15}/bin/install-evo15";
-        meta.description = "Guarded destructive installer for the Slimbook EVO15";
+      apps.${system} = {
+        jbellavista-shell = {
+          type = "app";
+          program = "${self.packages.${system}.jbellavista-shell}/bin/jbellavista-shell";
+          meta.description = "Experimental AGS shell replacement for Hyprpanel";
+        };
+
+        install-evo15 = {
+          type = "app";
+          program = "${self.packages.${system}.install-evo15}/bin/install-evo15";
+          meta.description = "Guarded destructive installer for the Slimbook EVO15";
+        };
       };
 
       checks.${system}.xkb-ergodox = pkgs.callPackage ./packages/check-xkb-ergodox.nix {

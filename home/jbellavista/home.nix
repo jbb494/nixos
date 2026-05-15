@@ -32,6 +32,27 @@ let
     '';
   };
 
+  secedit = pkgs.writeShellApplication {
+    name = "secedit";
+    runtimeInputs = with pkgs; [
+      coreutils
+      gnupg
+      neovim
+    ];
+    text = ''
+      set -euo pipefail
+
+      if [[ -z "''${GPG_TTY:-}" ]] && gpg_tty="$(tty 2>/dev/null)"; then
+        export GPG_TTY="$gpg_tty"
+      fi
+
+      exec nvim --clean \
+        --cmd "set runtimepath^=${pkgs.vimPlugins.vim-gnupg}" \
+        -u "$HOME/.config/nvim/secedit.lua" \
+        "$@"
+    '';
+  };
+
   hypr-summon = pkgs.writeShellApplication {
     name = "hypr-summon";
     runtimeInputs = with pkgs; [
@@ -344,6 +365,7 @@ in
       gh
       go
       google-chrome
+      gnupg
       grim
       jq
       kubectl
@@ -351,7 +373,6 @@ in
       nodejs_22
       obs-studio
       opencode
-      networkmanagerapplet
       pavucontrol
       playerctl
       pnpm
@@ -370,6 +391,7 @@ in
       hypr-summon
       screenshot-full
       screenshot-region
+      secedit
       tmux-projects
     ]
     ++ lib.optional (pkgs ? mise) pkgs.mise
@@ -386,6 +408,38 @@ in
   programs.fzf = {
     enable = true;
     enableZshIntegration = true;
+  };
+
+  programs.gpg.enable = true;
+
+  services.gpg-agent = {
+    enable = true;
+    enableZshIntegration = true;
+    pinentry.package = pkgs.pinentry-qt;
+  };
+
+  services.mako = {
+    enable = true;
+    settings = {
+      anchor = "top-right";
+      default-timeout = 0;
+      ignore-timeout = true;
+      layer = "overlay";
+      margin = "12,12";
+      padding = "10";
+      border-radius = 10;
+      border-size = 1;
+      width = 360;
+      font = "JetBrainsMono Nerd Font 10";
+      background-color = "#181825f2";
+      text-color = "#cdd6f4";
+      border-color = "#89b4fa66";
+      progress-color = "over #89b4fa";
+      icons = true;
+      markup = true;
+      actions = true;
+      on-button-left = "dismiss";
+    };
   };
 
   programs.git = {
@@ -517,16 +571,30 @@ in
       ta = "tmux attach";
       v = "nvim";
     };
+    plugins = [
+      {
+        name = "zsh-vi-mode";
+        src = pkgs.zsh-vi-mode;
+        file = "share/zsh-vi-mode/zsh-vi-mode.plugin.zsh";
+      }
+    ];
     syntaxHighlighting.enable = true;
     initContent = lib.mkMerge [
       (lib.mkOrder 550 ''
         path=("$HOME/rollnroll/devtools/bin" $path)
         fpath=("$HOME/rollnroll/devtools/completions" $fpath)
+
+        zvm_config() {
+          ZVM_LINE_INIT_MODE=$ZVM_MODE_INSERT
+        }
       '')
       (lib.mkOrder 1000 ''
-        bindkey -v
-        bindkey -M viins '^P' history-beginning-search-backward
-        bindkey -M viins '^N' history-beginning-search-forward
+        zvm_after_init() {
+          bindkey -M viins '^P' history-beginning-search-backward
+          bindkey -M viins '^N' history-beginning-search-forward
+          bindkey -M viins '^H' backward-delete-char
+        }
+
         PROMPT='λ > '
 
         ${lib.optionalString (pkgs ? mise) ''eval "$(${pkgs.mise}/bin/mise activate zsh)"''}
@@ -727,7 +795,8 @@ in
     "opencode/config.json".text = ''
       {
         "$schema": "https://opencode.ai/config.json",
-        "share": "disabled"
+        "share": "disabled",
+        "autoupdate": false
       }
     '';
     "opencode/tui.json".text = ''
