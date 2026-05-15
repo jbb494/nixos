@@ -340,6 +340,7 @@ in
     stateVersion = "25.11";
     sessionVariables = {
       EDITOR = "nvim";
+      JAVA_HOME = pkgs.jdk21.home;
       TERMINAL = "ghostty";
     };
     pointerCursor = {
@@ -367,6 +368,7 @@ in
       google-chrome
       gnupg
       grim
+      jdk21
       jq
       kubectl
       lua-language-server
@@ -790,6 +792,7 @@ in
     "ghostty/config".text = ''
       font-family = JetBrainsMonoNL Nerd Font Mono
       font-feature = -calt, -liga, -dlig
+      keybind = ctrl+enter=unbind
     '';
     "nvim".source = inputs.nvim-config;
     "opencode/config.json".text = ''

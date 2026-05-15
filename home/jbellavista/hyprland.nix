@@ -3,7 +3,6 @@
 let
   terminal = "ghostty";
   wallpaper = "${pkgs.nixos-artwork.wallpapers.catppuccin-mocha.gnomeFilePath}";
-  wallpaperMonitors = [ "eDP-1" "DP-1" ];
   hyprwhspr = lib.getExe pkgs.hyprwhspr-rs;
   lockAndSuspend = pkgs.writeShellApplication {
     name = "lock-and-suspend";
@@ -46,12 +45,10 @@ in
   '';
 
   xdg.configFile."hypr/hyprpaper.conf".text = ''
-    ${lib.concatMapStringsSep "\n\n" (monitor: ''
-      wallpaper {
-        monitor = ${monitor}
-        path = ${wallpaper}
-      }
-    '') wallpaperMonitors}
+    wallpaper {
+      monitor =
+      path = ${wallpaper}
+    }
 
     splash = false
     ipc = off
@@ -166,7 +163,6 @@ in
         "$mod, D, exec, rofi -show drun"
         "$mod SHIFT, Q, killactive"
         "$mod, mouse:274, killactive"
-        "$mod, F, fullscreen"
         "$mod SHIFT, Space, togglefloating"
         "$mod, E, exec, ${lockAndSuspend}/bin/lock-and-suspend"
         "$mod, period, exit"

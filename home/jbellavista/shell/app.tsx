@@ -31,6 +31,8 @@ const openMediaPosition = Variable<DropdownPosition | null>(null);
 const openNetworkPosition = Variable<DropdownPosition | null>(null);
 const activeMediaPlayer = Variable<AstalMpris.Player | null>(null);
 const mediaButtonLabel = Variable('󰎇 media');
+const mediaButtonCoverCss = Variable('');
+const mediaButtonHasCover = Variable(false);
 const networkScanActive = Variable(false);
 const stagedWifiBssid = Variable<string | null>(null);
 const stagedWifiPassword = Variable('');
@@ -85,6 +87,8 @@ const selectActiveMediaPlayer = () => {
   }
 
   mediaButtonLabel.set(mediaLabel(next));
+  mediaButtonCoverCss.set(next?.coverArt ? `background-image: url("${next.coverArt}");` : '');
+  mediaButtonHasCover.set(!!next?.coverArt);
 };
 
 const watchMediaPlayer = (player: AstalMpris.Player) => {
@@ -96,6 +100,7 @@ const watchMediaPlayer = (player: AstalMpris.Player) => {
   player.connect('notify::playback-status', selectActiveMediaPlayer);
   player.connect('notify::title', selectActiveMediaPlayer);
   player.connect('notify::artist', selectActiveMediaPlayer);
+  player.connect('notify::cover-art', selectActiveMediaPlayer);
   player.connect('notify::identity', selectActiveMediaPlayer);
 };
 
@@ -874,6 +879,19 @@ const MediaControlButton = ({ label, sensitive = true, onClick }: { label: strin
   </button>
 );
 
+const MediaButton = ({ monitor }: { monitor: number }) => (
+  <button className="widget media-bar-button" onClick={(self) => toggleMedia(monitor, self)}>
+    <box>
+      <box
+        className="media-bar-cover"
+        visible={bind(mediaButtonHasCover)}
+        css={bind(mediaButtonCoverCss)}
+      />
+      <label className="media-bar-label" widthRequest={160} truncate label={bind(mediaButtonLabel)} />
+    </box>
+  </button>
+);
+
 const MediaDropdown = (monitor: number) => (
   <window
     application={App}
@@ -1295,7 +1313,7 @@ const Bar = (monitor: number) => (
           <box className="section right" halign={Gtk.Align.END}>
             <RollnrollButton monitor={monitor} getMarginRight={dropdownRightForWidget} closeOthers={closeLocalDropdowns} />
             <GroupGap />
-            <ButtonWidget label={bind(mediaButtonLabel)} onClick={(self) => toggleMedia(monitor, self)} />
+            <MediaButton monitor={monitor} />
             <GroupGap />
             <ButtonWidget
               label={Variable.derive(
