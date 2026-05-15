@@ -8,12 +8,22 @@
     ./hardware-configuration.nix
     ./disko.nix
     ../../modules/system/base.nix
+    ../../modules/system/workstation.nix
     ../../modules/system/laptop.nix
     ../../modules/desktop/hyprland.nix
     ../../modules/keyboard/ergodox-dvorak.nix
   ];
 
   networking.hostName = "evo15";
+
+  boot = {
+    kernelPackages = pkgs.linuxPackages_latest;
+    kernelParams = [ "amd_pstate=active" ];
+  };
+
+  hardware.cpu.amd.updateMicrocode = true;
+
+  services.xserver.videoDrivers = [ "amdgpu" ];
 
   # Passwords are set interactively by the installer; keep secrets out of Git.
   users.mutableUsers = true;

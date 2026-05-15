@@ -204,6 +204,7 @@ writeShellApplication {
 
     echo
     echo "Re-opening the LUKS volume to set the user password."
+    cryptsetup luksClose crypted 2>/dev/null || true
     echo "Enter the same passphrase you just used:"
     cryptsetup luksOpen /dev/disk/by-partlabel/disk-main-luks crypted
 

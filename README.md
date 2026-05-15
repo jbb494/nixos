@@ -31,7 +31,7 @@ nmtui
 sudo nix --experimental-features "nix-command flakes" run github:jbb494/nixos#install-evo15
 ```
 
-The installer command is intentionally guarded. It refuses to continue unless the target disk looks like the EVO15 SSD and you confirm the destructive install prompt. By default it installs `evo15-minimal`, a bootstrap configuration that avoids building the full desktop/home-manager closure inside the RAM-backed installer.
+The installer command is intentionally guarded. It refuses to continue unless the target disk looks like the EVO15 SSD and you confirm the destructive install prompt. By default it installs `evo15-bootstrap`, a bootstrap configuration that avoids building the full desktop/home-manager closure inside the RAM-backed installer.
 
 During install:
 
@@ -39,7 +39,7 @@ During install:
 - The installer asks interactively for the `jbellavista` login/sudo password after NixOS is installed under `/mnt`.
 - Passwords are not stored in this repository.
 
-After rebooting into the minimal system, unlock LUKS, log in, connect networking if needed, then switch to the full desktop configuration:
+After rebooting into the bootstrap system, unlock LUKS, log in, connect networking if needed, then switch to the full desktop configuration:
 
 ```sh
 sudo nixos-rebuild switch --flake github:jbb494/nixos#evo15
@@ -75,7 +75,7 @@ sudo env NIXOS_FLAKE_REF=github:jbb494/nixos#evo15 nix --experimental-features "
 - If RollnRoll integration is enabled, verify the RollnRoll GitHub SSH alias: `ssh -T github.com-rollnroll`.
 - Verify personal Git identity selection in `~/personal` repositories: `git config --show-origin user.email`.
 - Add any non-personal Git/SSH identities locally after install; keep those out of this public repository.
-- Run `sudo nixos-rebuild switch --flake github:jbb494/nixos#evo15` if you are still on the minimal bootstrap configuration.
+- Run `sudo nixos-rebuild switch --flake github:jbb494/nixos#evo15` if you are still on the EVO15 bootstrap configuration.
 - Run `hyprctl devices` and update the Ergodox per-device match if the device name differs.
 
 ## Disk Layout
@@ -106,6 +106,6 @@ From a machine with Nix installed:
 nix flake show
 nix build .#checks.x86_64-linux.xkb-ergodox
 nix build .#packages.x86_64-linux.install-evo15
-nix build .#nixosConfigurations.evo15-minimal.config.system.build.toplevel --dry-run
+nix build .#nixosConfigurations.evo15-bootstrap.config.system.build.toplevel --dry-run
 nix build .#nixosConfigurations.evo15.config.system.build.toplevel --dry-run
 ```

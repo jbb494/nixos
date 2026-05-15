@@ -9,6 +9,7 @@
     ./hardware-configuration.nix
     ./disko.nix
     ../../modules/system/base.nix
+    ../../modules/system/workstation.nix
     ../../modules/desktop/hyprland.nix
     ../../modules/keyboard/ergodox-dvorak.nix
   ];
@@ -17,11 +18,6 @@
 
   hardware = {
     cpu.intel.updateMicrocode = true;
-    enableAllFirmware = true;
-    graphics = {
-      enable = true;
-      enable32Bit = true;
-    };
     nvidia = {
       modesetting.enable = true;
       nvidiaSettings = true;
@@ -31,9 +27,6 @@
   };
 
   services = {
-    blueman.enable = true;
-    fwupd.enable = true;
-    libinput.enable = true;
     xserver.videoDrivers = [ "nvidia" ];
   };
 

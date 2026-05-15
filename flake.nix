@@ -44,14 +44,14 @@
         ];
       };
 
-      nixosConfigurations.evo15-minimal = nixpkgs.lib.nixosSystem {
+      nixosConfigurations.evo15-bootstrap = nixpkgs.lib.nixosSystem {
         inherit system;
         specialArgs = {
           inherit inputs self xkeyboardConfigErgodox;
         };
         modules = [
           disko.nixosModules.disko
-          ./hosts/evo15/configuration-minimal.nix
+          ./hosts/evo15/configuration-bootstrap.nix
         ];
       };
 
@@ -64,6 +64,17 @@
           disko.nixosModules.disko
           home-manager.nixosModules.home-manager
           ./hosts/desktop/configuration.nix
+        ];
+      };
+
+      nixosConfigurations.desktop-bootstrap = nixpkgs.lib.nixosSystem {
+        inherit system;
+        specialArgs = {
+          inherit inputs self xkeyboardConfigErgodox;
+        };
+        modules = [
+          disko.nixosModules.disko
+          ./hosts/desktop/configuration-bootstrap.nix
         ];
       };
 
