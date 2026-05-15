@@ -76,18 +76,14 @@
     },
     "rollnroll-devtools": {
       "locked": {
-        "lastModified": 1778848412,
-        "narHash": "sha256-fQ5GKY1vm1LkmkPZPIdQ6nESn6iY9/+xSPQRshx7OKc=",
-        "ref": "refs/heads/main",
-        "rev": "1c77a47cef1267292da05c1d8b1e95fe4541204a",
-        "revCount": 4,
-        "type": "git",
-        "url": "ssh://git@github.com-rollnroll/joan-lgtm/devtools.git"
+        "path": "./stubs/rollnroll-devtools",
+        "type": "path"
       },
       "original": {
-        "type": "git",
-        "url": "ssh://git@github.com-rollnroll/joan-lgtm/devtools.git"
-      }
+        "path": "./stubs/rollnroll-devtools",
+        "type": "path"
+      },
+      "parent": []
     },
     "root": {
       "inputs": {

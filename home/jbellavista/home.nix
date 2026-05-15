@@ -6,6 +6,7 @@
 }:
 
 let
+  rollnrollEnabled = !(inputs.rollnroll-devtools ? isStub);
   tmuxProjectsBin = "/etc/profiles/per-user/jbellavista/bin/tmux-projects";
 
   screenshot-full = pkgs.writeShellApplication {
@@ -329,9 +330,9 @@ in
     inputs.rollnroll-devtools.homeManagerModules.default
   ];
 
-  programs.rollnroll-devtools = {
+  programs.rollnroll-devtools = lib.mkIf rollnrollEnabled {
     enable = true;
-    enableZshIntegration = false;
+    enableZshIntegration = true;
   };
 
   home = {
@@ -495,6 +496,7 @@ in
         identityFile = "~/.ssh/id_ed25519_personal";
         identitiesOnly = true;
       };
+    } // lib.optionalAttrs rollnrollEnabled {
       "github.com-rollnroll" = {
         hostname = "github.com";
         user = "git";
@@ -583,9 +585,6 @@ in
     syntaxHighlighting.enable = true;
     initContent = lib.mkMerge [
       (lib.mkOrder 550 ''
-        path=("$HOME/rollnroll/devtools/bin" $path)
-        fpath=("$HOME/rollnroll/devtools/completions" $fpath)
-
         zvm_config() {
           ZVM_LINE_INIT_MODE=$ZVM_MODE_INSERT
         }

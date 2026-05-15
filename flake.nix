@@ -19,7 +19,7 @@
       flake = false;
     };
 
-    rollnroll-devtools.url = "git+ssh://git@github.com-rollnroll/joan-lgtm/devtools.git";
+    rollnroll-devtools.url = "path:./stubs/rollnroll-devtools";
   };
 
   outputs = inputs@{ self, nixpkgs, disko, home-manager, ... }:
