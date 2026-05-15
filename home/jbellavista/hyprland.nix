@@ -96,10 +96,9 @@ in
       };
 
       monitor = [
-        # Fallback for any unspecified monitor: preferred mode, auto-placed,
-        # scale 1. Matches Hyprland's built-in default; declared explicitly
-        # so per-monitor overrides have a documented place to live.
-        ", preferred, auto, 1"
+        # Fallback for any unspecified monitor: highest refresh mode,
+        # auto-placed, scale 1.
+        ", highrr, auto, 1"
       ];
 
       exec-once = [
