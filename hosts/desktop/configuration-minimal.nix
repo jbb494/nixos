@@ -38,7 +38,7 @@
     tmp.cleanOnBoot = true;
   };
 
-  networking.hostName = "evo15";
+  networking.hostName = "desktop";
   networking.networkmanager.enable = true;
 
   programs.zsh.enable = true;
@@ -52,7 +52,11 @@
   services.openssh.enable = true;
   services.fstrim.enable = true;
 
-  hardware.enableRedistributableFirmware = true;
+  hardware = {
+    cpu.intel.updateMicrocode = true;
+    enableRedistributableFirmware = true;
+  };
+
   zramSwap.enable = true;
 
   environment.systemPackages = with pkgs; [

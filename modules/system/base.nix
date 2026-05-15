@@ -75,11 +75,6 @@
     };
   };
 
-  users.users.jbellavista.openssh.authorizedKeys.keys = [
-    # personal desktop (pop-os) -> evo15; private half: ~/.ssh/id_ed25519_evo15
-    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMOEEzR/dAVHRKsrABpTl1UM+waJr2Whp6C7orZxrWaM pop-os->evo15"
-  ];
-
   virtualisation.docker.enable = true;
   zramSwap.enable = true;
 

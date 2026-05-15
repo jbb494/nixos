@@ -55,8 +55,8 @@ sudo env NIXOS_FLAKE_REF=github:jbb494/nixos#evo15 nix --experimental-features "
 
 - Reboot into the installed system and unlock LUKS with the passphrase chosen during install.
 - Log in as `jbellavista` with the password chosen during install.
-- Restore the personal SSH private key to `~/.ssh/id_ed25519_personal`; do not commit private keys to this repository.
-- Ensure SSH key permissions are strict: `chmod 700 ~/.ssh` and `chmod 600 ~/.ssh/id_ed25519_personal`.
+- SSH authorized keys are intentionally not stored in this repository. If you want SSH access after install, add a key from a trusted client with `ssh-copy-id -i ~/.ssh/id_ed25519_<host>.pub jbellavista@<new-host-ip>`.
+- If creating a host-specific SSH key, use `ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_<host> -C "jbellavista@<host>"`, then copy only the public key with `ssh-copy-id`.
 - RollnRoll integration is optional. The default flake uses a local stub and does not need RollnRoll SSH access.
 - If enabling RollnRoll integration, restore the RollnRoll SSH private key to `~/.ssh/id_ed25519_rollnroll` and update permissions with `chmod 600 ~/.ssh/id_ed25519_rollnroll`.
 - Before a RollnRoll-enabled `nixos-rebuild switch`, create a temporary bootstrap `~/.ssh/config` entry for the private devtools input:

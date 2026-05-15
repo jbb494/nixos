@@ -55,12 +55,39 @@
         ];
       };
 
+      nixosConfigurations.desktop = nixpkgs.lib.nixosSystem {
+        inherit system;
+        specialArgs = {
+          inherit inputs self xkeyboardConfigErgodox;
+        };
+        modules = [
+          disko.nixosModules.disko
+          home-manager.nixosModules.home-manager
+          ./hosts/desktop/configuration.nix
+        ];
+      };
+
+      nixosConfigurations.desktop-minimal = nixpkgs.lib.nixosSystem {
+        inherit system;
+        specialArgs = {
+          inherit inputs self xkeyboardConfigErgodox;
+        };
+        modules = [
+          disko.nixosModules.disko
+          ./hosts/desktop/configuration-minimal.nix
+        ];
+      };
+
       packages.${system} = {
         inherit xkeyboardConfigErgodox;
         jbellavista-shell = pkgs.callPackage ./packages/jbellavista-shell.nix {
           rollnrollShellModule = inputs.rollnroll-devtools.shellModules.ags.rollnroll or null;
         };
         install-evo15 = pkgs.callPackage ./apps/install-evo15.nix {
+          diskoPackage = disko.packages.${system}.disko;
+          nixosInstallTools = pkgs.nixos-install-tools;
+        };
+        install-desktop = pkgs.callPackage ./apps/install-desktop.nix {
           diskoPackage = disko.packages.${system}.disko;
           nixosInstallTools = pkgs.nixos-install-tools;
         };
@@ -77,6 +104,12 @@
           type = "app";
           program = "${self.packages.${system}.install-evo15}/bin/install-evo15";
           meta.description = "Guarded destructive installer for the Slimbook EVO15";
+        };
+
+        install-desktop = {
+          type = "app";
+          program = "${self.packages.${system}.install-desktop}/bin/install-desktop";
+          meta.description = "Guarded destructive installer for the desktop";
         };
       };
 
