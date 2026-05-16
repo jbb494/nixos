@@ -16,6 +16,8 @@
 
   networking.hostName = "desktop";
 
+  console.keyMap = pkgs.lib.mkForce "dvorak";
+
   hardware = {
     cpu.intel.updateMicrocode = true;
     nvidia = {
