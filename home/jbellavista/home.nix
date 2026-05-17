@@ -500,6 +500,11 @@ in
     enable = true;
     enableDefaultConfig = false;
     matchBlocks = {
+      "homelab" = {
+        hostname = "ubuntu-4gb-hel1-1";
+        user = "root";
+      };
+
       "github.com-personal" = {
         hostname = "github.com";
         user = "git";
