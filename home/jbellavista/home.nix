@@ -10,27 +10,28 @@ let
   rollnrollEnabled = !(inputs.rollnroll-devtools ? isStub);
   tmuxProjectsBin = "/etc/profiles/per-user/jbellavista/bin/tmux-projects";
 
-  screenshot-full = pkgs.writeShellApplication {
-    name = "screenshot-full";
-    runtimeInputs = with pkgs; [
-      grim
-      swappy
-    ];
-    text = ''
-      grim - | swappy -f -
+  # Wrap bun so prebuilt native addons (sharp, canvas, sqlite3, ...) can dlopen
+  # libstdc++.so.6 on NixOS. Scoped to bun only — no global LD_LIBRARY_PATH.
+  bun = pkgs.symlinkJoin {
+    name = "bun";
+    paths = [ pkgs.bun ];
+    nativeBuildInputs = [ pkgs.makeWrapper ];
+    postBuild = ''
+      wrapProgram $out/bin/bun \
+        --suffix LD_LIBRARY_PATH : ${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ]}
     '';
   };
 
-  screenshot-region = pkgs.writeShellApplication {
-    name = "screenshot-region";
+  screenshot = pkgs.writeShellApplication {
+    name = "screenshot";
     runtimeInputs = with pkgs; [
       grim
       slurp
-      swappy
+      wl-clipboard
     ];
     text = ''
       geometry="$(slurp)"
-      grim -g "$geometry" - | swappy -f -
+      grim -g "$geometry" - | wl-copy --type image/png
     '';
   };
 
@@ -390,7 +391,6 @@ in
       slurp
       spotify
       stylua
-      swappy
       typescript-language-server
       uv
       vscode-langservers-extracted
@@ -398,8 +398,7 @@ in
     ]
     ++ [
       hypr-summon
-      screenshot-full
-      screenshot-region
+      screenshot
       secedit
       tmux-projects
     ]
@@ -476,6 +475,7 @@ in
     settings = {
       branch.sort = "-committerdate";
       column.ui = "auto";
+      alias.lola = "log --graph --decorate --pretty=oneline --abbrev-commit --all";
       user.name = "Joan Bellavista Bartroli";
       diff = {
         algorithm = "histogram";
@@ -772,35 +772,20 @@ in
     '';
     "applications/nm-connection-editor.desktop".force = true;
 
-    "applications/screenshot-full.desktop".text = ''
+    "applications/screenshot.desktop".text = ''
       [Desktop Entry]
-      Name=Screenshot Full Screen
+      Name=Screenshot
       GenericName=Screenshot Tool
-      Comment=Capture the full screen and edit it in Swappy
-      Exec=${screenshot-full}/bin/screenshot-full
+      Comment=Select a screen region and copy it to the clipboard
+      Exec=${screenshot}/bin/screenshot
       Icon=camera-photo
       StartupNotify=false
       Terminal=false
       Type=Application
       Categories=Utility;Graphics;
-      Keywords=Screenshot;Screen;Capture;Swappy;Grim;
+      Keywords=Screenshot;Screen;Capture;Region;Crop;Rectangle;Clipboard;Grim;Slurp;
     '';
-    "applications/screenshot-full.desktop".force = true;
-
-    "applications/screenshot-region.desktop".text = ''
-      [Desktop Entry]
-      Name=Screenshot Region
-      GenericName=Screenshot Tool
-      Comment=Select a screen region and edit it in Swappy
-      Exec=${screenshot-region}/bin/screenshot-region
-      Icon=camera-photo
-      StartupNotify=false
-      Terminal=false
-      Type=Application
-      Categories=Utility;Graphics;
-      Keywords=Screenshot;Screen;Capture;Region;Swappy;Grim;Slurp;
-    '';
-    "applications/screenshot-region.desktop".force = true;
+    "applications/screenshot.desktop".force = true;
 
     "applications/tmux-projects.desktop".text = ''
       [Desktop Entry]
