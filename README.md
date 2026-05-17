@@ -57,22 +57,22 @@ sudo env NIXOS_FLAKE_REF=github:jbb494/nixos#evo15 nix --experimental-features "
 - Log in as `jbellavista` with the password chosen during install.
 - SSH authorized keys are intentionally not stored in this repository. If you want SSH access after install, add a key from a trusted client with `ssh-copy-id -i ~/.ssh/id_ed25519_<host>.pub jbellavista@<new-host-ip>`.
 - If creating a host-specific SSH key, use `ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_<host> -C "jbellavista@<host>"`, then copy only the public key with `ssh-copy-id`.
-- RollnRoll integration is optional. The default flake uses a local stub and does not need RollnRoll SSH access.
-- If enabling RollnRoll integration, restore the RollnRoll SSH private key to `~/.ssh/id_ed25519_rollnroll` and update permissions with `chmod 600 ~/.ssh/id_ed25519_rollnroll`.
-- If using the SSH alias form instead of `github.com`, create a temporary bootstrap `~/.ssh/config` entry for the private devtools input:
+- If using private GitHub identities, keep repository remotes and dependency URLs on normal `github.com` URLs. Home Manager configures `~/personal` repositories to rewrite `github.com` to the personal SSH alias locally, so public repos do not need machine-specific hostnames in `package.json` or `.git/config`.
+- For other private GitHub identities, keep the Git rewrite in a private local include outside this repository. Example shape:
 
-  ```sshconfig
-  Host github.com-rollnroll
-    HostName github.com
-    User git
-    IdentityFile ~/.ssh/id_ed25519_rollnroll
-    IdentitiesOnly yes
+  ```ini
+  [url "git@github.com-private:"]
+    insteadOf = git@github.com:
+
+  [url "ssh://git@github.com-private/"]
+    insteadOf = ssh://git@github.com/
+
+  [url "git+ssh://git@github.com-private/"]
+    insteadOf = git+ssh://git@github.com/
   ```
 
-  Home Manager manages this SSH host after the first successful RollnRoll-enabled switch, but Nix needs the bootstrap entry before it can fetch private inputs. The managed Home Manager SSH config is allowed to replace this temporary file.
-- Build with the private RollnRoll input only on machines that should use it: `sudo env GIT_SSH_COMMAND='ssh -i /home/jbellavista/.ssh/id_ed25519_rollnroll -o IdentitiesOnly=yes' nixos-rebuild switch --flake .#evo15 --override-input rollnroll-devtools git+ssh://git@github.com/joan-lgtm/devtools.git`.
+  With this setup, raw remotes stay portable, for example `git@github.com:org/repo.git`, while Git displays and accesses them through the local alias. Check raw vs rewritten with `git config --get remote.origin.url` and `git remote get-url origin`.
 - Verify the personal GitHub SSH alias: `ssh -T github.com-personal`.
-- If RollnRoll integration is enabled, verify the RollnRoll GitHub SSH alias: `ssh -T github.com-rollnroll`.
 - Verify personal Git identity selection in `~/personal` repositories: `git config --show-origin user.email`.
 - Add any non-personal Git/SSH identities locally after install; keep those out of this public repository.
 - Run `sudo nixos-rebuild switch --flake github:jbb494/nixos#evo15` if you are still on the EVO15 bootstrap configuration.

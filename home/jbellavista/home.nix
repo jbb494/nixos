@@ -460,9 +460,16 @@ in
     includes = [
       {
         condition = "gitdir:~/personal/";
-        contents.user = {
-          name = "Joan Bellavista Bartroli";
-          email = "jbb494@gmail.com";
+        contents = {
+          user = {
+            name = "Joan Bellavista Bartroli";
+            email = "jbb494@gmail.com";
+          };
+          url = {
+            "git@github.com-personal:".insteadOf = "git@github.com:";
+            "ssh://git@github.com-personal/".insteadOf = "ssh://git@github.com/";
+            "git+ssh://git@github.com-personal/".insteadOf = "git+ssh://git@github.com/";
+          };
         };
       }
     ];
@@ -502,7 +509,7 @@ in
     matchBlocks = {
       "homelab" = {
         hostname = "ubuntu-4gb-hel1-1";
-        user = "root";
+        user = "jbellavista";
       };
 
       "github.com-personal" = {
