@@ -554,6 +554,7 @@ in
       set -g display-time 4000
       set -g status-interval 5
       set -g focus-events on
+      set -g detach-on-destroy off
       setw -g aggressive-resize on
 
       bind r source-file ~/.config/tmux/tmux.conf
