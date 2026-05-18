@@ -1,4 +1,4 @@
-{ inputs, lib, pkgs, ... }:
+{ config, lib, pkgs, ... }:
 
 let
   terminal = "ghostty";
@@ -21,8 +21,10 @@ let
     url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin";
     hash = "sha256-oDd5yG3zMjB19eeWyyzlAp8A7Ihp7uP9+4l6/jbG0AI=";
   };
+  rollnrollShellModule = config.programs.rollnroll-devtools.ags.shellModule or null;
+  rollnrollRuntimePackages = config.programs.rollnroll-devtools.ags.runtimePackages or [ ];
   jbellavista-shell = pkgs.callPackage ../../packages/jbellavista-shell.nix {
-    rollnrollShellModule = inputs.rollnroll-devtools.shellModules.ags.rollnroll or null;
+    inherit rollnrollShellModule rollnrollRuntimePackages;
   };
 in
 {

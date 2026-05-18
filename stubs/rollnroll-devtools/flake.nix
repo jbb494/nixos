@@ -12,6 +12,18 @@
           default = false;
           description = "Whether to add rollnroll devtools shell integration.";
         };
+        ags = {
+          shellModule = lib.mkOption {
+            type = lib.types.nullOr lib.types.path;
+            default = null;
+            description = "AGS shell module provided by RollnRoll devtools.";
+          };
+          runtimePackages = lib.mkOption {
+            type = lib.types.listOf lib.types.package;
+            default = [ ];
+            description = "Runtime packages required by the RollnRoll AGS shell module.";
+          };
+        };
       };
     };
   };

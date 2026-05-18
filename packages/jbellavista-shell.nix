@@ -1,9 +1,11 @@
 { ags
 , astal
+, lib
 , networkmanager
 , runCommand
 , writeText
 , rollnrollShellModule ? null
+, rollnrollRuntimePackages ? [ ]
 }:
 
 let
@@ -38,7 +40,7 @@ in
     networkmanager
     astal.tray
     astal.wireplumber
-  ];
+  ] ++ rollnrollRuntimePackages;
 }).overrideAttrs (oldAttrs: {
   postInstall = (oldAttrs.postInstall or "") + ''
     rm -rf $out/share
