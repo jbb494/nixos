@@ -23,6 +23,10 @@
 
   hardware.cpu.amd.updateMicrocode = true;
 
+  services.udev.extraRules = ''
+    ACTION=="add|change", SUBSYSTEM=="video4linux", ATTR{name}=="FHD WebCam: FHD WebCam", ATTR{index}=="0", ATTRS{idVendor}=="2b7e", ATTRS{idProduct}=="c906", RUN+="${pkgs.v4l-utils}/bin/v4l2-ctl --device=%N --set-ctrl=brightness=7,contrast=54,gamma=325,gain=82,sharpness=52,backlight_compensation=2"
+  '';
+
   services.xserver.videoDrivers = [ "amdgpu" ];
 
   # Passwords are set interactively by the installer; keep secrets out of Git.
