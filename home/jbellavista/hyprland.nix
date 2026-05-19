@@ -1,4 +1,4 @@
-{ config, lib, pkgs, ... }:
+{ config, lib, osConfig, pkgs, ... }:
 
 let
   terminal = "ghostty";
@@ -26,6 +26,17 @@ let
   jbellavista-shell = pkgs.callPackage ../../packages/jbellavista-shell.nix {
     inherit rollnrollShellModule rollnrollRuntimePackages;
   };
+  hostName = osConfig.networking.hostName or "";
+  monitorRules =
+    if hostName == "desktop" then [
+      # Desktop DisplayPort exposes the ultrawide's native high-refresh mode.
+      "desc:LG Electronics 34GP950G #GTIYMxgwAAa2, 3440x1440@144, auto, 1"
+      ", preferred, auto, 1"
+    ] else [
+      # Fallback for unspecified monitors: preferred mode, auto-placed, scale 1.
+      # Avoids selecting lower-resolution high-refresh modes on the laptop/dock.
+      ", preferred, auto, 1"
+    ];
 in
 {
   home.packages = [ jbellavista-shell pkgs.hyprlock pkgs.hyprpaper pkgs.hyprwhspr-rs ];
@@ -97,11 +108,7 @@ in
         no_update_news = true;
       };
 
-      monitor = [
-        # Fallback for any unspecified monitor: highest refresh mode,
-        # auto-placed, scale 1.
-        ", highrr, auto, 1"
-      ];
+      monitor = monitorRules;
 
       exec-once = [
         "${jbellavista-shell}/bin/jbellavista-shell"
