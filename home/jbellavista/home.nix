@@ -515,6 +515,13 @@ in
         user = "jbellavista";
       };
 
+      "pokemon-db-public" = {
+        hostname = "ubuntu-4gb-hel1-2";
+        user = "jbellavista";
+        identityFile = "~/.ssh/id_ed25519_ubuntu-4gb-hel1-2";
+        identitiesOnly = true;
+      };
+
       "github.com-personal" = {
         hostname = "github.com";
         user = "git";
