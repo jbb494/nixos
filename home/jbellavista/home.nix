@@ -368,6 +368,7 @@ in
       delta
       discord
       docker-compose
+      ffmpeg
       gcc
       gettext
       ghostty
@@ -380,6 +381,8 @@ in
       jq
       kubectl
       lua-language-server
+      mariadb
+      nautilus
       nodejs_22
       obs-studio
       opencode
@@ -698,6 +701,19 @@ in
       gtk-theme = "Adwaita-dark";
       cursor-theme = "Adwaita";
       cursor-size = 24;
+    };
+  };
+
+  xdg.mimeApps = {
+    enable = true;
+    defaultApplications = {
+      "inode/directory" = "org.gnome.Nautilus.desktop";
+      "text/html" = "google-chrome.desktop";
+      "x-scheme-handler/about" = "google-chrome.desktop";
+      "x-scheme-handler/claude-cli" = "claude-code-url-handler.desktop";
+      "x-scheme-handler/http" = "google-chrome.desktop";
+      "x-scheme-handler/https" = "google-chrome.desktop";
+      "x-scheme-handler/unknown" = "google-chrome.desktop";
     };
   };
 
