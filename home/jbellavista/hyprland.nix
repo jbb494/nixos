@@ -30,7 +30,7 @@ let
   monitorRules =
     if hostName == "desktop" then [
       # Desktop DisplayPort exposes the ultrawide's native high-refresh mode.
-      "desc:LG Electronics 34GP950G #GTIYMxgwAAa2, 3440x1440@144, auto, 1"
+      "DP-1, 3440x1440@143.97, auto, 1"
       ", preferred, auto, 1"
     ] else [
       # Fallback for unspecified monitors: preferred mode, auto-placed, scale 1.
