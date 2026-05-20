@@ -112,6 +112,7 @@ in
 
       exec-once = [
         "${jbellavista-shell}/bin/jbellavista-shell"
+        "playerctld daemon"
         "${pkgs.mako}/bin/mako"
         "${pkgs.hyprpaper}/bin/hyprpaper"
       ];
@@ -234,11 +235,11 @@ in
         ", XF86AudioMute, exec, wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
         ", XF86MonBrightnessUp, exec, brightnessctl set +10%"
         ", XF86MonBrightnessDown, exec, brightnessctl set 10%-"
-        ", XF86AudioPlay, exec, playerctl play-pause"
-        ", XF86AudioPause, exec, playerctl play-pause"
-        ", XF86AudioNext, exec, playerctl next"
-        ", XF86AudioPrev, exec, playerctl previous"
-        ", XF86AudioStop, exec, playerctl stop"
+        ", XF86AudioPlay, exec, playerctl -p playerctld play-pause"
+        ", XF86AudioPause, exec, playerctl -p playerctld play-pause"
+        ", XF86AudioNext, exec, playerctl -p playerctld next"
+        ", XF86AudioPrev, exec, playerctl -p playerctld previous"
+        ", XF86AudioStop, exec, playerctl -p playerctld stop"
       ];
 
       binde = [
