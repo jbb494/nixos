@@ -3,6 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs-kernel.url = "github:NixOS/nixpkgs/da5ad661ba4e5ef59ba743f0d112cbc30e474f32";
 
     disko = {
       url = "github:nix-community/disko/latest";
@@ -29,13 +30,17 @@
         inherit system;
         config.allowUnfree = true;
       };
+      kernelPkgs = import inputs.nixpkgs-kernel {
+        inherit system;
+        config.allowUnfree = true;
+      };
       xkeyboardConfigErgodox = pkgs.callPackage ./packages/xkeyboard-config-ergodox.nix { };
     in
     {
       nixosConfigurations.evo15 = nixpkgs.lib.nixosSystem {
         inherit system;
         specialArgs = {
-          inherit inputs self xkeyboardConfigErgodox;
+          inherit inputs self kernelPkgs xkeyboardConfigErgodox;
         };
         modules = [
           disko.nixosModules.disko

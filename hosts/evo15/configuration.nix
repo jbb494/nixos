@@ -1,4 +1,5 @@
 { inputs
+, kernelPkgs
 , pkgs
 , ...
 }:
@@ -17,7 +18,7 @@
   networking.hostName = "evo15";
 
   boot = {
-    kernelPackages = pkgs.linuxPackages_latest;
+    kernelPackages = kernelPkgs.linuxPackages;
     kernelParams = [ "amd_pstate=active" ];
   };
 
