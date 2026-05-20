@@ -1360,22 +1360,64 @@ const Bar = (monitor: number) => (
   </window>
 );
 
+let monitorCount = 0;
+
+const monitorWindowNames = (monitor: number) => [
+  `jbellavista-shell-bar-${monitor}`,
+  `dropdown-click-catcher-${monitor}`,
+  `rollnroll-dropdown-${monitor}`,
+  `bluetooth-dropdown-${monitor}`,
+  `media-dropdown-${monitor}`,
+  `network-dropdown-${monitor}`,
+  `audio-dropdown-${monitor}`,
+];
+
+const destroyMonitorWindows = (monitor: number) => {
+  monitorWindowNames(monitor).forEach((name) => App.get_window(name)?.destroy());
+};
+
+const createMonitorWindows = (monitor: number) => {
+  Bar(monitor);
+  ClickCatcher(monitor);
+  RollnrollDropdown(monitor, dropdownMarginTop);
+  BluetoothDropdown(monitor);
+  MediaDropdown(monitor);
+  NetworkDropdown(monitor);
+  AudioDropdown(monitor);
+};
+
+const syncMonitorWindows = () => {
+  const display = Gdk.Display.get_default();
+  const nextMonitorCount = display?.get_n_monitors() ?? 1;
+
+  if (nextMonitorCount === monitorCount) {
+    return;
+  }
+
+  if (nextMonitorCount < monitorCount) {
+    closeDropdowns();
+
+    for (let monitor = nextMonitorCount; monitor < monitorCount; monitor += 1) {
+      destroyMonitorWindows(monitor);
+    }
+  }
+
+  for (let monitor = monitorCount; monitor < nextMonitorCount; monitor += 1) {
+    createMonitorWindows(monitor);
+  }
+
+  monitorCount = nextMonitorCount;
+};
+
 App.start({
   instanceName: 'jbellavista-shell',
   main: () => {
     App.apply_css(`${style}\n${rollnrollCss}`, true);
 
     const display = Gdk.Display.get_default();
-    const monitorCount = display?.get_n_monitors() ?? 1;
 
-    for (let monitor = 0; monitor < monitorCount; monitor += 1) {
-      Bar(monitor);
-      ClickCatcher(monitor);
-      RollnrollDropdown(monitor, dropdownMarginTop);
-      BluetoothDropdown(monitor);
-      MediaDropdown(monitor);
-      NetworkDropdown(monitor);
-      AudioDropdown(monitor);
-    }
+    syncMonitorWindows();
+    display?.connect('monitor-added', syncMonitorWindows);
+    display?.connect('monitor-removed', syncMonitorWindows);
   },
 });
