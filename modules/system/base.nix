@@ -38,7 +38,12 @@
     dns = "systemd-resolved";
   };
 
-  systemd.services.NetworkManager-wait-online.enable = false;
+  systemd.services = {
+    NetworkManager-wait-online.enable = true;
+    tailscaled = {
+      wants = [ "NetworkManager-wait-online.service" ];
+    };
+  };
 
   programs = {
     zsh = {
