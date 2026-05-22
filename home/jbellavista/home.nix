@@ -733,7 +733,7 @@ in
       Name=Google Chrome
       GenericName=Web Browser
       Comment=Access the Internet
-      Exec=${pkgs.google-chrome}/bin/google-chrome-stable --ozone-platform=x11 --new-window %U
+      Exec=${pkgs.google-chrome}/bin/google-chrome-stable --ozone-platform=wayland --enable-features=UseOzonePlatform --new-window %U
       StartupNotify=true
       StartupWMClass=Google-chrome
       Terminal=false
@@ -745,11 +745,11 @@ in
 
       [Desktop Action new-window]
       Name=New Window
-      Exec=${pkgs.google-chrome}/bin/google-chrome-stable --ozone-platform=x11 --new-window
+      Exec=${pkgs.google-chrome}/bin/google-chrome-stable --ozone-platform=wayland --enable-features=UseOzonePlatform --new-window
 
       [Desktop Action new-private-window]
       Name=New Incognito Window
-      Exec=${pkgs.google-chrome}/bin/google-chrome-stable --ozone-platform=x11 --incognito
+      Exec=${pkgs.google-chrome}/bin/google-chrome-stable --ozone-platform=wayland --enable-features=UseOzonePlatform --incognito
     '';
     "applications/google-chrome.desktop".force = true;
 
