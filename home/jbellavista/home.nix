@@ -522,6 +522,13 @@ in
         identitiesOnly = true;
       };
 
+      "ubuntu-8gb-fsn1-1" = {
+        hostname = "ubuntu-8gb-fsn1-1";
+        user = "jbellavista";
+        identityFile = "~/.ssh/id_ed25519_ubuntu-4gb-hel1-2";
+        identitiesOnly = true;
+      };
+
       "github.com-personal" = {
         hostname = "github.com";
         user = "git";
