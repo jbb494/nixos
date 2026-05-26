@@ -389,6 +389,8 @@ in
       pavucontrol
       playerctl
       pnpm
+      prettier
+      prettierd
       python311
       rofi
       slurp
