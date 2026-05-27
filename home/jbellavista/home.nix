@@ -9,6 +9,22 @@
 let
   rollnrollEnabled = !(inputs.rollnroll-devtools ? isStub);
   tmuxProjectsBin = "/etc/profiles/per-user/jbellavista/bin/tmux-projects";
+  opencodeDefaultProject = "${config.home.homeDirectory}/personal/nixos";
+  opencodeProfileDirs = profile: {
+    dataHome = "${config.home.homeDirectory}/.local/share/opencode-profiles/${profile}/data";
+    stateHome = "${config.home.homeDirectory}/.local/state/opencode-profiles/${profile}";
+    cacheHome = "${config.home.homeDirectory}/.cache/opencode-profiles/${profile}";
+  };
+  opencodeProfileEnv = profile:
+    let
+      dirs = opencodeProfileDirs profile;
+    in
+    [
+      "XDG_DATA_HOME=${dirs.dataHome}"
+      "XDG_STATE_HOME=${dirs.stateHome}"
+      "XDG_CACHE_HOME=${dirs.cacheHome}"
+    ];
+  personalOpencodeProfileDirs = opencodeProfileDirs "personal";
 
   # Wrap bun so prebuilt native addons (sharp, canvas, sqlite3, ...) can dlopen
   # libstdc++.so.6 on NixOS. Scoped to bun only — no global LD_LIBRARY_PATH.
@@ -329,6 +345,29 @@ let
       esac
     '';
   };
+
+  opencodeWebService = { port, profile ? null }:
+    let
+      profileEnv = lib.optionals (profile != null) (opencodeProfileEnv profile);
+    in
+    {
+      Unit = {
+        Description = "OpenCode web interface${lib.optionalString (profile != null) " (${profile})"}";
+      };
+
+      Service = {
+        Type = "simple";
+        WorkingDirectory = opencodeDefaultProject;
+        ExecStart = "${pkgs.opencode}/bin/opencode serve --hostname 0.0.0.0 --port ${toString port}";
+        Restart = "on-failure";
+        RestartSec = 5;
+        Environment = [
+          "LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ]}"
+        ] ++ profileEnv;
+      };
+
+      Install.WantedBy = [ "default.target" ];
+    };
 in
 
 {
@@ -429,6 +468,14 @@ in
     enable = true;
     enableZshIntegration = true;
     pinentry.package = pkgs.pinentry-qt;
+  };
+
+  systemd.user.services = {
+    opencode-web = opencodeWebService { port = 4096; };
+    opencode-web-personal = opencodeWebService {
+      port = 4097;
+      profile = "personal";
+    };
   };
 
   services.mako = {
@@ -667,9 +714,9 @@ in
               return
             fi
 
-            XDG_DATA_HOME="$HOME/.local/share/opencode-profiles/$profile/data" \
-              XDG_STATE_HOME="$HOME/.local/state/opencode-profiles/$profile" \
-              XDG_CACHE_HOME="$HOME/.cache/opencode-profiles/$profile" \
+            XDG_DATA_HOME="${personalOpencodeProfileDirs.dataHome}" \
+              XDG_STATE_HOME="${personalOpencodeProfileDirs.stateHome}" \
+              XDG_CACHE_HOME="${personalOpencodeProfileDirs.cacheHome}" \
               command opencode "$@"
           }
         ''}

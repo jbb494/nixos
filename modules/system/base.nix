@@ -38,6 +38,8 @@
     dns = "systemd-resolved";
   };
 
+  networking.firewall.trustedInterfaces = [ "tailscale0" ];
+
   systemd.services = {
     NetworkManager-wait-online.enable = true;
     tailscaled = {
