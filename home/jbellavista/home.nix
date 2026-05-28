@@ -306,7 +306,7 @@ let
           | sort -rn \
           | cut -d ' ' -f2- \
           | grep -Fxv "$current" \
-          | fzf --no-sort --prompt='Sessions> ')"
+          | fzf --tiebreak=index --prompt='Sessions> ')"
 
         [[ -n "$selection" ]] || exit 0
         "''${tmux_command[@]}" switch-client -t "$selection"
