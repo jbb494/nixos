@@ -365,6 +365,18 @@ const closeLocalDropdowns = () => {
   openNetworkPosition.set(null);
 };
 
+const setLayerWindowVisible = (window: Gtk.Widget, visible: boolean) => {
+  if (window.get_visible() === visible) {
+    return;
+  }
+
+  if (visible) {
+    window.show();
+  } else {
+    window.hide();
+  }
+};
+
 const openRollnrollMonitorValue = () => {
   const value = openRollnrollMonitor.get();
   return typeof value === 'number' ? value : value?.monitor ?? null;
@@ -496,7 +508,7 @@ const ClickCatcher = (monitor: number) => (
     }}
     setup={(self) => {
       const update = () => {
-        self.visible = openAudioPosition.get()?.monitor === monitor || openBluetoothPosition.get()?.monitor === monitor || openMediaPosition.get()?.monitor === monitor || openNetworkPosition.get()?.monitor === monitor || openRollnrollMonitorValue() === monitor;
+        setLayerWindowVisible(self, openAudioPosition.get()?.monitor === monitor || openBluetoothPosition.get()?.monitor === monitor || openMediaPosition.get()?.monitor === monitor || openNetworkPosition.get()?.monitor === monitor || openRollnrollMonitorValue() === monitor);
       };
 
       openAudioPosition.subscribe(update);
@@ -914,8 +926,9 @@ const MediaDropdown = (monitor: number) => (
     setup={(self) => {
       openMediaPosition.subscribe((position) => {
         self.marginRight = position?.marginRight ?? 10;
-        self.visible = position?.monitor === monitor;
-        if (self.visible) {
+        const visible = position?.monitor === monitor;
+        setLayerWindowVisible(self, visible);
+        if (visible) {
           self.grab_focus();
         }
       });
@@ -1029,8 +1042,9 @@ const BluetoothDropdown = (monitor: number) => (
     setup={(self) => {
       openBluetoothPosition.subscribe((position) => {
         self.marginRight = position?.marginRight ?? 10;
-        self.visible = position?.monitor === monitor;
-        if (self.visible) {
+        const visible = position?.monitor === monitor;
+        setLayerWindowVisible(self, visible);
+        if (visible) {
           self.grab_focus();
         }
       });
@@ -1109,8 +1123,9 @@ const NetworkDropdown = (monitor: number) => (
     setup={(self) => {
       openNetworkPosition.subscribe((position) => {
         self.marginRight = position?.marginRight ?? 10;
-        self.visible = position?.monitor === monitor;
-        if (self.visible) {
+        const visible = position?.monitor === monitor;
+        setLayerWindowVisible(self, visible);
+        if (visible) {
           self.grab_focus();
         }
       });
@@ -1220,8 +1235,9 @@ const AudioDropdown = (monitor: number) => (
     setup={(self) => {
       openAudioPosition.subscribe((position) => {
         self.marginRight = position?.marginRight ?? 10;
-        self.visible = position?.monitor === monitor;
-        if (self.visible) {
+        const visible = position?.monitor === monitor;
+        setLayerWindowVisible(self, visible);
+        if (visible) {
           self.grab_focus();
         }
       });
