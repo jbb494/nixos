@@ -1,6 +1,7 @@
 { inputs
 , config
 , lib
+, masterPkgs
 , opencodePersonalProfile
 , pkgs
 , ...
@@ -424,7 +425,7 @@ in
       nautilus
       nodejs_22
       obs-studio
-      opencode
+      masterPkgs.opencode
       pavucontrol
       playerctl
       pnpm

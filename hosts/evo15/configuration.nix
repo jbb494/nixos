@@ -1,5 +1,6 @@
 { inputs
 , kernelPkgs
+, masterPkgs
 , pkgs
 , ...
 }:
@@ -50,7 +51,7 @@
     useGlobalPkgs = true;
     useUserPackages = true;
     extraSpecialArgs = {
-      inherit inputs;
+      inherit inputs masterPkgs;
       opencodePersonalProfile = true;
     };
     users.jbellavista = import ../../home/jbellavista/home.nix;
