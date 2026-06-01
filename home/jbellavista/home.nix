@@ -415,6 +415,7 @@ in
       gh
       go
       google-chrome
+      google-cloud-sdk
       gnupg
       grim
       jdk21
