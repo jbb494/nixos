@@ -734,6 +734,8 @@ in
     ];
   };
 
+  # Dark theming. GTK3 uses the file-based Adwaita-dark theme; GTK4/libadwaita
+  # only honours the prefer-dark hint (no gtk4.theme - it has Adwaita built in).
   gtk = {
     enable = true;
     theme = {
@@ -745,13 +747,7 @@ in
       package = pkgs.adwaita-icon-theme;
     };
     gtk3.extraConfig.gtk-application-prefer-dark-theme = 1;
-    gtk4 = {
-      theme = {
-        name = "Adwaita-dark";
-        package = pkgs.gnome-themes-extra;
-      };
-      extraConfig.gtk-application-prefer-dark-theme = 1;
-    };
+    gtk4.extraConfig.gtk-application-prefer-dark-theme = 1;
   };
 
   qt = {
@@ -760,13 +756,11 @@ in
     style.name = "adwaita-dark";
   };
 
-  dconf.settings = {
-    "org/gnome/desktop/interface" = {
-      color-scheme = "prefer-dark";
-      gtk-theme = "Adwaita-dark";
-      cursor-theme = "Adwaita";
-      cursor-size = 24;
-    };
+  dconf.settings."org/gnome/desktop/interface" = {
+    color-scheme = "prefer-dark";
+    gtk-theme = "Adwaita-dark";
+    cursor-theme = "Adwaita";
+    cursor-size = 24;
   };
 
   xdg.mimeApps = {
