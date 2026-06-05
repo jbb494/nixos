@@ -159,11 +159,11 @@ let
     text = ''
       set -euo pipefail
 
-      tmux_command=(tmux)
-      tmux_socket="''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/tmux-$(id -u)/default"
-      if [[ -S "$tmux_socket" ]]; then
-        tmux_command=(tmux -S "$tmux_socket")
-      fi
+      tmux_socket_dir="''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/tmux-$(id -u)"
+      tmux_socket="$tmux_socket_dir/default"
+      mkdir -p "$tmux_socket_dir"
+      chmod 700 "$tmux_socket_dir"
+      tmux_command=(tmux -S "$tmux_socket")
 
       command="''${1:-open}"
       shift || true
