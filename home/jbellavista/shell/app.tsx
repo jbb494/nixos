@@ -8,7 +8,7 @@ import AstalNetwork from 'gi://AstalNetwork?version=0.1';
 import AstalTray from 'gi://AstalTray?version=0.1';
 import AstalWp from 'gi://AstalWp?version=0.1';
 import NM from 'gi://NM?version=1.0';
-import { Gio, GLib, Variable, bind } from 'astal';
+import { Gio, GLib, Variable, bind, execAsync, monitorFile, readFile } from 'astal';
 import style from './style.css';
 import { RollnrollButton, RollnrollDropdown, closeRollnroll, openRollnrollMonitor, rollnrollCss } from './external/rollnroll';
 
@@ -29,6 +29,7 @@ const openAudioPosition = Variable<DropdownPosition | null>(null);
 const openBluetoothPosition = Variable<DropdownPosition | null>(null);
 const openMediaPosition = Variable<DropdownPosition | null>(null);
 const openNetworkPosition = Variable<DropdownPosition | null>(null);
+const openOpencodePosition = Variable<DropdownPosition | null>(null);
 const activeMediaPlayer = Variable<AstalMpris.Player | null>(null);
 const mediaButtonLabel = Variable('󰎇 media');
 const mediaButtonCoverCss = Variable('');
@@ -47,6 +48,109 @@ const clock = Variable(GLib.DateTime.new_now_local()).poll(
   1000,
   () => GLib.DateTime.new_now_local(),
 );
+
+// --- opencode attention queue -----------------------------------------------
+// Mirrors $XDG_RUNTIME_DIR/opencode-done-queue.json, written by the opencode
+// plugin and managed through `tmux-projects oc-queue`.
+
+type OpencodeAttentionEntry = {
+  session: string;
+  title: string;
+  status: string;
+  ts: number;
+};
+
+const tmuxProjectsBin = '/etc/profiles/per-user/jbellavista/bin/tmux-projects';
+const opencodeQueueFile = `${GLib.get_user_runtime_dir()}/opencode-done-queue.json`;
+const opencodeQueue = Variable<OpencodeAttentionEntry[]>([]);
+const opencodePulsing = Variable(false);
+const opencodeAnnouncement = Variable('');
+let opencodePulseSource = 0;
+let opencodeAnnouncementSource = 0;
+
+const readOpencodeQueue = (): OpencodeAttentionEntry[] => {
+  try {
+    const content = readFile(opencodeQueueFile);
+
+    if (!content) {
+      return [];
+    }
+
+    const parsed = JSON.parse(content);
+    return Array.isArray(parsed) ? parsed.filter((entry) => typeof entry?.session === 'string') : [];
+  } catch {
+    return [];
+  }
+};
+
+const triggerOpencodePulse = () => {
+  if (opencodePulseSource !== 0) {
+    GLib.source_remove(opencodePulseSource);
+    opencodePulseSource = 0;
+  }
+
+  // Drop the class for a tick so re-adding it restarts the CSS animation.
+  opencodePulsing.set(false);
+
+  GLib.timeout_add(GLib.PRIORITY_DEFAULT, 30, () => {
+    opencodePulsing.set(true);
+    opencodePulseSource = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 900, () => {
+      opencodePulsing.set(false);
+      opencodePulseSource = 0;
+      return GLib.SOURCE_REMOVE;
+    });
+    return GLib.SOURCE_REMOVE;
+  });
+};
+
+// Briefly expands the bar widget with the session name, then collapses back
+// to the icon + count badge.
+const announceOpencodeSession = (session: string) => {
+  opencodeAnnouncement.set(session);
+
+  if (opencodeAnnouncementSource !== 0) {
+    GLib.source_remove(opencodeAnnouncementSource);
+  }
+
+  opencodeAnnouncementSource = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 4000, () => {
+    opencodeAnnouncement.set('');
+    opencodeAnnouncementSource = 0;
+    return GLib.SOURCE_REMOVE;
+  });
+};
+
+const updateOpencodeQueue = () => {
+  const previous = opencodeQueue.get();
+  const next = readOpencodeQueue();
+  const fresh = next.filter((entry) => !previous.some((existing) => existing.session === entry.session && existing.ts === entry.ts));
+
+  opencodeQueue.set(next);
+
+  if (fresh.length > 0) {
+    triggerOpencodePulse();
+    announceOpencodeSession(fresh[fresh.length - 1].session);
+  }
+
+  if (next.length === 0) {
+    openOpencodePosition.set(null);
+  }
+};
+
+updateOpencodeQueue();
+monitorFile(opencodeQueueFile, updateOpencodeQueue);
+
+const opencodeGoto = (session: string) => {
+  openOpencodePosition.set(null);
+  execAsync([tmuxProjectsBin, 'oc-queue', 'goto', session]).catch((error) => {
+    console.error(`Failed to jump to tmux session ${session}: ${error}`);
+  });
+};
+
+const opencodePrune = (session: string) => {
+  execAsync([tmuxProjectsBin, 'oc-queue', 'prune', session]).catch((error) => {
+    console.error(`Failed to dismiss opencode queue entry ${session}: ${error}`);
+  });
+};
 
 const ssidFromBytes = (bytes: GLib.Bytes) => new TextDecoder().decode(Uint8Array.from(bytes.get_data())).replace(/\0+$/, '');
 
@@ -300,6 +404,7 @@ const dropdownRightForWidget = (widget: Gtk.Widget) => {
 
 const toggleAudio = (monitor: number, widget: Gtk.Widget) => {
   closeRollnroll();
+  openOpencodePosition.set(null);
   openBluetoothPosition.set(null);
   openMediaPosition.set(null);
   openNetworkPosition.set(null);
@@ -313,6 +418,7 @@ const toggleAudio = (monitor: number, widget: Gtk.Widget) => {
 
 const toggleBluetooth = (monitor: number, widget: Gtk.Widget) => {
   closeRollnroll();
+  openOpencodePosition.set(null);
   openAudioPosition.set(null);
   openMediaPosition.set(null);
   openNetworkPosition.set(null);
@@ -326,6 +432,7 @@ const toggleBluetooth = (monitor: number, widget: Gtk.Widget) => {
 
 const toggleMedia = (monitor: number, widget: Gtk.Widget) => {
   closeRollnroll();
+  openOpencodePosition.set(null);
   openAudioPosition.set(null);
   openBluetoothPosition.set(null);
   openNetworkPosition.set(null);
@@ -339,6 +446,7 @@ const toggleMedia = (monitor: number, widget: Gtk.Widget) => {
 
 const toggleNetwork = (monitor: number, widget: Gtk.Widget) => {
   closeRollnroll();
+  openOpencodePosition.set(null);
   openAudioPosition.set(null);
   openBluetoothPosition.set(null);
   openMediaPosition.set(null);
@@ -350,7 +458,22 @@ const toggleNetwork = (monitor: number, widget: Gtk.Widget) => {
   });
 };
 
+const toggleOpencode = (monitor: number, widget: Gtk.Widget) => {
+  closeRollnroll();
+  openAudioPosition.set(null);
+  openBluetoothPosition.set(null);
+  openMediaPosition.set(null);
+  openNetworkPosition.set(null);
+  const current = openOpencodePosition.get();
+
+  openOpencodePosition.set(current?.monitor === monitor ? null : {
+    monitor,
+    marginRight: dropdownRightForWidget(widget),
+  });
+};
+
 const closeDropdowns = () => {
+  openOpencodePosition.set(null);
   openAudioPosition.set(null);
   openBluetoothPosition.set(null);
   openMediaPosition.set(null);
@@ -359,6 +482,7 @@ const closeDropdowns = () => {
 };
 
 const closeLocalDropdowns = () => {
+  openOpencodePosition.set(null);
   openAudioPosition.set(null);
   openBluetoothPosition.set(null);
   openMediaPosition.set(null);
@@ -508,13 +632,14 @@ const ClickCatcher = (monitor: number) => (
     }}
     setup={(self) => {
       const update = () => {
-        setLayerWindowVisible(self, openAudioPosition.get()?.monitor === monitor || openBluetoothPosition.get()?.monitor === monitor || openMediaPosition.get()?.monitor === monitor || openNetworkPosition.get()?.monitor === monitor || openRollnrollMonitorValue() === monitor);
+        setLayerWindowVisible(self, openAudioPosition.get()?.monitor === monitor || openBluetoothPosition.get()?.monitor === monitor || openMediaPosition.get()?.monitor === monitor || openNetworkPosition.get()?.monitor === monitor || openOpencodePosition.get()?.monitor === monitor || openRollnrollMonitorValue() === monitor);
       };
 
       openAudioPosition.subscribe(update);
       openBluetoothPosition.subscribe(update);
       openMediaPosition.subscribe(update);
       openNetworkPosition.subscribe(update);
+      openOpencodePosition.subscribe(update);
       openRollnrollMonitor.subscribe(update);
     }}
   >
@@ -1304,6 +1429,101 @@ const AudioDropdown = (monitor: number) => (
   </window>
 );
 
+const OpencodeButton = ({ monitor }: { monitor: number }) => (
+  <button
+    className={Variable.derive(
+      [bind(opencodeQueue), bind(opencodePulsing)],
+      (queue, pulsing) => {
+        const attention = queue.some((entry) => entry.status === 'error')
+          ? 'has-error'
+          : queue.some((entry) => entry.status === 'permission') ? 'has-ask' : '';
+        return `widget opencode-button ${attention} ${pulsing ? 'pulse' : ''}`;
+      },
+    )()}
+    visible={bind(opencodeQueue).as((queue) => queue.length > 0)}
+    onClick={(self) => toggleOpencode(monitor, self)}
+  >
+    <box>
+      <label className="opencode-icon" label="󰚩" />
+      <revealer
+        revealChild={bind(opencodeAnnouncement).as((text) => text.length > 0)}
+        transitionType={Gtk.RevealerTransitionType.SLIDE_RIGHT}
+        transitionDuration={250}
+      >
+        <label className="opencode-announcement" truncate maxWidthChars={28} label={bind(opencodeAnnouncement)} />
+      </revealer>
+      <label className="opencode-count" label={bind(opencodeQueue).as((queue) => String(queue.length))} />
+    </box>
+  </button>
+);
+
+const OpencodeDropdown = (monitor: number) => (
+  <window
+    application={App}
+    name={`opencode-dropdown-${monitor}`}
+    namespace="jbellavista-shell-opencode"
+    className="opencode-dropdown"
+    monitor={monitor}
+    layer={Astal.Layer.TOP}
+    anchor={Astal.WindowAnchor.TOP | Astal.WindowAnchor.RIGHT}
+    exclusivity={Astal.Exclusivity.IGNORE}
+    keymode={Astal.Keymode.ON_DEMAND}
+    marginTop={dropdownMarginTop}
+    marginRight={10}
+    onKeyPressEvent={(_, event) => {
+      if (event.get_keyval()[1] === Gdk.KEY_Escape) {
+        openOpencodePosition.set(null);
+      }
+    }}
+    visible={false}
+    setup={(self) => {
+      openOpencodePosition.subscribe((position) => {
+        self.marginRight = position?.marginRight ?? 10;
+        const visible = position?.monitor === monitor;
+        setLayerWindowVisible(self, visible);
+        if (visible) {
+          self.grab_focus();
+        }
+      });
+    }}
+  >
+    <box className="dropdown-shell opencode-menu" vertical>
+      <box className="opencode-menu-header">
+        <label className="opencode-menu-title" halign={Gtk.Align.START} hexpand label="OpenCode" />
+        <label className="opencode-menu-summary" label={bind(opencodeQueue).as((queue) => `${queue.length} waiting`)} />
+      </box>
+
+      {bind(opencodeQueue).as((queue) => {
+        if (queue.length === 0) {
+          return <label className="opencode-empty" halign={Gtk.Align.START} label="Nothing waiting" />;
+        }
+
+        return queue.map((entry) => (
+          <box className="opencode-entry-row">
+            <button
+              className={`opencode-entry ${entry.status === 'error' ? 'error' : ''} ${entry.status === 'permission' ? 'permission' : ''}`}
+              tooltipText={`Jump to ${entry.session}`}
+              hexpand
+              onClick={() => opencodeGoto(entry.session)}
+            >
+              <box>
+                <label className="opencode-entry-icon" label={entry.status === 'error' ? '󰀦' : entry.status === 'permission' ? '󰋗' : '󰗠'} />
+                <box vertical hexpand>
+                  <label className="opencode-entry-title" halign={Gtk.Align.START} truncate label={entry.title || entry.session} />
+                  <label className="opencode-entry-meta" halign={Gtk.Align.START} truncate label={entry.session} />
+                </box>
+              </box>
+            </button>
+            <button className="opencode-dismiss" tooltipText="Dismiss" onClick={() => opencodePrune(entry.session)}>
+              <label label="󰅖" />
+            </button>
+          </box>
+        ));
+      })}
+    </box>
+  </window>
+);
+
 const Bar = (monitor: number) => (
   <window
     application={App}
@@ -1327,6 +1547,7 @@ const Bar = (monitor: number) => (
         centerWidget={<box className="section center" />}
         endWidget={
           <box className="section right" halign={Gtk.Align.END}>
+            <OpencodeButton monitor={monitor} />
             <RollnrollButton monitor={monitor} getMarginRight={dropdownRightForWidget} closeOthers={closeLocalDropdowns} />
             <GroupGap />
             <MediaButton monitor={monitor} />
@@ -1386,6 +1607,7 @@ const monitorWindowNames = (monitor: number) => [
   `media-dropdown-${monitor}`,
   `network-dropdown-${monitor}`,
   `audio-dropdown-${monitor}`,
+  `opencode-dropdown-${monitor}`,
 ];
 
 const destroyMonitorWindows = (monitor: number) => {
@@ -1400,6 +1622,7 @@ const createMonitorWindows = (monitor: number) => {
   MediaDropdown(monitor);
   NetworkDropdown(monitor);
   AudioDropdown(monitor);
+  OpencodeDropdown(monitor);
 };
 
 const syncMonitorWindows = () => {

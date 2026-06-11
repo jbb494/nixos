@@ -33,6 +33,13 @@
   font-size: 12px;
 }
 
+.opencode-dropdown {
+  background: transparent;
+  color: #cdd6f4;
+  font-family: "JetBrainsMono Nerd Font", monospace;
+  font-size: 12px;
+}
+
 .click-catcher {
   background: transparent;
 }
@@ -651,4 +658,142 @@
 .audio-empty {
   color: #6c7086;
   padding: 4px 2px;
+}
+
+@keyframes opencode-attention {
+  0% {
+    background: rgba(49, 50, 68, 0.72);
+  }
+  35% {
+    background: rgba(243, 139, 168, 0.55);
+  }
+  100% {
+    background: rgba(49, 50, 68, 0.72);
+  }
+}
+
+.opencode-button {
+  color: #cdd6f4;
+}
+
+.opencode-button.pulse {
+  animation: opencode-attention 0.7s ease-in-out;
+}
+
+.opencode-icon {
+  font-size: 13px;
+}
+
+.opencode-announcement {
+  margin-left: 6px;
+  font-weight: 700;
+}
+
+.opencode-count {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #f38ba8;
+  color: #1e1e2e;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.opencode-button.has-error .opencode-icon {
+  color: #f38ba8;
+}
+
+.opencode-button.has-ask .opencode-icon {
+  color: #f9e2af;
+}
+
+.opencode-menu {
+  min-width: 360px;
+  padding: 10px;
+}
+
+.opencode-menu-header {
+  margin-bottom: 6px;
+}
+
+.opencode-menu-title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.opencode-menu-summary {
+  color: #a6adc8;
+}
+
+.opencode-entry-row {
+  margin-top: 4px;
+}
+
+.opencode-entry {
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 10px;
+  color: #cdd6f4;
+  background: rgba(49, 50, 68, 0.42);
+}
+
+.opencode-entry:hover {
+  background: rgba(69, 71, 90, 0.76);
+}
+
+.opencode-entry.error {
+  background: rgba(243, 139, 168, 0.12);
+}
+
+.opencode-entry.error:hover {
+  background: rgba(243, 139, 168, 0.22);
+}
+
+.opencode-entry-icon {
+  min-width: 24px;
+  margin-right: 8px;
+  color: #a6e3a1;
+}
+
+.opencode-entry.error .opencode-entry-icon {
+  color: #f38ba8;
+}
+
+.opencode-entry.permission {
+  background: rgba(249, 226, 175, 0.12);
+}
+
+.opencode-entry.permission:hover {
+  background: rgba(249, 226, 175, 0.22);
+}
+
+.opencode-entry.permission .opencode-entry-icon {
+  color: #f9e2af;
+}
+
+.opencode-entry-title {
+  margin-right: 8px;
+  font-weight: 700;
+}
+
+.opencode-entry-meta {
+  color: #a6adc8;
+}
+
+.opencode-dismiss {
+  margin-left: 4px;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 10px;
+  color: #f38ba8;
+  background: rgba(49, 50, 68, 0.42);
+}
+
+.opencode-dismiss:hover {
+  background: rgba(69, 71, 90, 0.76);
+}
+
+.opencode-empty {
+  color: #6c7086;
+  padding: 6px 2px;
 }

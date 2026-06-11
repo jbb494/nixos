@@ -149,12 +149,14 @@ let
     name = "tmux-projects";
     runtimeInputs = with pkgs; [
       coreutils
+      curl
       findutils
       fzf
       ghostty
       hyprland
       jq
       tmux
+      util-linux
     ];
     text = ''
       set -euo pipefail
@@ -164,6 +166,7 @@ let
       mkdir -p "$tmux_socket_dir"
       chmod 700 "$tmux_socket_dir"
       tmux_command=(tmux -S "$tmux_socket")
+      oc_queue_file="''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/opencode-done-queue.json"
 
       command="''${1:-open}"
       shift || true
@@ -333,14 +336,264 @@ let
             done
       }
 
+      # --- opencode attention queue ---------------------------------------
+      # JSON array of {session, title, status, ts} entries describing tmux
+      # sessions whose opencode run finished and awaits the user's attention.
+
+      oc_queue_read() {
+        if [[ -s "$oc_queue_file" ]]; then
+          cat "$oc_queue_file"
+        else
+          printf '[]'
+        fi
+      }
+
+      oc_queue_update() {
+        local program="$1"
+        shift
+        exec 9>"$oc_queue_file.lock"
+        flock 9
+        oc_queue_read | jq -c "$@" "$program" >"$oc_queue_file.tmp"
+        mv "$oc_queue_file.tmp" "$oc_queue_file"
+        exec 9>&-
+      }
+
+      # Prints "client_tty client_session" of the most recently active client.
+      oc_recent_client() {
+        "''${tmux_command[@]}" list-clients -F '#{client_activity} #{client_tty} #{client_session}' 2>/dev/null \
+          | sort -rn \
+          | while read -r _ rest; do
+              printf '%s' "$rest"
+              break
+            done || true
+      }
+
+      # The user is "watching" a session when ghostty is the focused window
+      # and the most recently active tmux client shows that session.
+      oc_user_watching() {
+        local session="$1"
+        local active_class=""
+        local client_info=""
+
+        active_class="$(hyprctl activewindow -j 2>/dev/null | jq -r '.class // .initialClass // ""' 2>/dev/null || true)"
+        if [[ "$active_class" != "com.mitchellh.ghostty" ]]; then
+          return 1
+        fi
+
+        client_info="$(oc_recent_client)"
+        [[ -n "$client_info" ]] || return 1
+        [[ "''${client_info#* }" == "$session" ]]
+      }
+
+      oc_queue_add() {
+        local session="''${1:-}"
+        local status="''${2:-done}"
+        shift 2 2>/dev/null || true
+        local title="$*"
+
+        if [[ -z "$session" ]]; then
+          printf 'usage: tmux-projects oc-queue add SESSION [STATUS] [TITLE...]\n' >&2
+          exit 2
+        fi
+
+        if oc_user_watching "$session"; then
+          exit 0
+        fi
+
+        # shellcheck disable=SC2016 # $session/$title/$status are jq variables
+        oc_queue_update \
+          'map(select(.session != $session)) + [{session: $session, title: $title, status: $status, ts: now}]' \
+          --arg session "$session" --arg status "$status" --arg title "''${title:-$session}"
+      }
+
+      # Removes a session's entry. Writes only when the entry exists, since
+      # this runs on every client focus-in and pointless writes would churn
+      # the file watchers (bar, picker).
+      oc_queue_prune() {
+        local session="''${1:-}"
+        local queue=""
+        [[ -n "$session" ]] || return 0
+
+        exec 9>"$oc_queue_file.lock"
+        flock 9
+        queue="$(oc_queue_read)"
+        # shellcheck disable=SC2016 # $session is a jq variable
+        if jq -e --arg session "$session" 'any(.[]; .session == $session)' <<<"$queue" >/dev/null; then
+          # shellcheck disable=SC2016 # $session is a jq variable
+          jq -c --arg session "$session" 'map(select(.session != $session))' <<<"$queue" >"$oc_queue_file.tmp"
+          mv "$oc_queue_file.tmp" "$oc_queue_file"
+        fi
+        exec 9>&-
+      }
+
+      oc_goto_session() {
+        local session="$1"
+        local client_info=""
+        local client_tty=""
+
+        oc_queue_prune "$session"
+
+        if ! "''${tmux_command[@]}" has-session -t "=$session" 2>/dev/null; then
+          return 0
+        fi
+
+        client_info="$(oc_recent_client)"
+
+        if [[ -n "$client_info" ]]; then
+          client_tty="''${client_info%% *}"
+          focus_tmux_terminal
+          "''${tmux_command[@]}" switch-client -c "$client_tty" -t "=$session"
+          return 0
+        fi
+
+        exec ghostty -e "''${tmux_command[@]}" attach-session -t "=$session"
+      }
+
+      oc_queue_pop() {
+        local queue=""
+        local live=""
+        local next=""
+
+        exec 9>"$oc_queue_file.lock"
+        flock 9
+        queue="$(oc_queue_read)"
+        live="$({ "''${tmux_command[@]}" list-sessions -F '#{session_name}' 2>/dev/null || true; } | jq -R . | jq -s -c .)"
+        queue="$(jq -c --argjson live "$live" 'map(select(.session as $s | $live | index($s)))' <<<"$queue")"
+        next="$(jq -r '.[0].session // empty' <<<"$queue")"
+        jq -c '.[1:]' <<<"$queue" >"$oc_queue_file.tmp"
+        mv "$oc_queue_file.tmp" "$oc_queue_file"
+        exec 9>&-
+
+        [[ -n "$next" ]] || return 0
+        oc_goto_session "$next"
+      }
+
+      # Prints fzf input lines (session<TAB>icon<TAB>title) for live sessions.
+      oc_queue_lines() {
+        local queue=""
+        local live=""
+
+        queue="$(oc_queue_read)"
+        live="$({ "''${tmux_command[@]}" list-sessions -F '#{session_name}' 2>/dev/null || true; } | jq -R . | jq -s -c .)"
+        jq -r --argjson live "$live" \
+          'map(select(.session as $s | $live | index($s)))
+           | .[]
+           | "\(if .status == "error" then "✗" elif .status == "permission" then "?" else "✓" end) \(.title | gsub("[\\n\\t]"; " "))  ·  \(.session)\t\(.session)"' \
+          <<<"$queue"
+      }
+
+      # Background helper started by fzf (inherits $FZF_PORT): pushes a reload
+      # to the running picker whenever the queue file changes, and exits when
+      # the picker is gone.
+      oc_queue_watch() {
+        [[ -n "''${FZF_PORT:-}" ]] || exit 0
+
+        local last=""
+        local current=""
+
+        while :; do
+          if ! curl -fsS -o /dev/null "localhost:''${FZF_PORT}" 2>/dev/null; then
+            exit 0
+          fi
+
+          current="$(stat -c %Y "$oc_queue_file" 2>/dev/null || printf '0')"
+
+          if [[ "$current" != "$last" ]]; then
+            curl -fsS -o /dev/null -XPOST "localhost:''${FZF_PORT}" \
+              -d "reload($0 oc-queue lines)" 2>/dev/null || exit 0
+            last="$current"
+          fi
+
+          sleep 1
+        done
+      }
+
+      # Fuzzy-pick a waiting session (runs inside a tmux popup or a fresh
+      # ghostty window, mirroring select_project). Stays open while empty and
+      # refreshes in real time as opencode sessions finish.
+      oc_queue_select() {
+        local selection=""
+        local session=""
+
+        selection="$(fzf </dev/null \
+          --listen \
+          --delimiter='\t' --with-nth=1 --tiebreak=index \
+          --prompt='OpenCode> ' \
+          --header='finished opencode sessions · updates live · esc to close' \
+          --bind "start:reload($0 oc-queue lines)+execute-silent(nohup $0 oc-queue watch >/dev/null 2>&1 &)" \
+          || true)"
+        [[ -n "$selection" ]] || exit 0
+        session="''${selection##*$'\t'}"
+
+        oc_queue_prune "$session"
+
+        if ! "''${tmux_command[@]}" has-session -t "=$session" 2>/dev/null; then
+          exit 0
+        fi
+
+        if [[ -n "''${TMUX:-}" ]]; then
+          "''${tmux_command[@]}" switch-client -t "=$session"
+          exit 0
+        fi
+
+        if [[ "''${TMUX_PROJECTS_KEEP_SHELL:-0}" == "1" ]]; then
+          "''${tmux_command[@]}" attach-session -t "=$session"
+          exec "''${SHELL:-${pkgs.zsh}/bin/zsh}" -l
+        fi
+
+        exec "''${tmux_command[@]}" attach-session -t "=$session"
+      }
+
+      # App entrypoint: show the picker in a popup on the most recent tmux
+      # client (focusing ghostty), or spawn a ghostty window for it.
+      oc_queue_open() {
+        local client_info=""
+        local client_tty=""
+
+        client_info="$(oc_recent_client)"
+
+        if [[ -n "$client_info" ]]; then
+          client_tty="''${client_info%% *}"
+          focus_tmux_terminal
+          exec "''${tmux_command[@]}" display-popup -t "$client_tty" -E "$0 oc-queue select"
+        fi
+
+        exec ghostty -e env TMUX_PROJECTS_KEEP_SHELL=1 "$0" oc-queue select
+      }
+
+      oc_queue() {
+        local subcommand="''${1:-list}"
+        shift || true
+
+        case "$subcommand" in
+          add) oc_queue_add "$@" ;;
+          pop) oc_queue_pop ;;
+          prune) oc_queue_prune "$@" ;;
+          goto) oc_goto_session "''${1:?tmux-projects oc-queue goto SESSION}" ;;
+          select) oc_queue_select ;;
+          open) oc_queue_open ;;
+          lines) oc_queue_lines ;;
+          watch) oc_queue_watch ;;
+          list)
+            oc_queue_read
+            printf '\n'
+            ;;
+          *)
+            printf 'usage: tmux-projects oc-queue [add|pop|prune|goto|select|open|list]\n' >&2
+            exit 2
+            ;;
+        esac
+      }
+
       case "$command" in
         open) open_picker "$@" ;;
         select) select_project "$@" ;;
         switch) switch_session ;;
         windows) switch_window ;;
         sessions) print_sessions ;;
+        oc-queue) oc_queue "$@" ;;
         *)
-          printf 'usage: tmux-projects [open|select|switch|windows|sessions]\n' >&2
+          printf 'usage: tmux-projects [open|select|switch|windows|sessions|oc-queue]\n' >&2
           exit 2
           ;;
       esac
@@ -477,6 +730,28 @@ in
     opencode-web-personal = opencodeWebService {
       port = 4097;
       profile = "personal";
+    };
+
+    # Mirrors the unit shipped in the mako package (not enableable
+    # declaratively), shadowed via ~/.config/systemd/user so sd-switch manages
+    # it. X-Restart-Triggers forces a restart when the settings change.
+    mako = {
+      Unit = {
+        Description = "Mako notification daemon";
+        After = [ "graphical-session.target" ];
+        PartOf = [ "graphical-session.target" ];
+        X-Restart-Triggers = [ (builtins.hashString "sha256" (builtins.toJSON config.services.mako.settings)) ];
+      };
+      Service = {
+        Type = "dbus";
+        BusName = "org.freedesktop.Notifications";
+        ExecCondition = "${pkgs.runtimeShell} -c '[ -n \"$WAYLAND_DISPLAY\" ]'";
+        ExecStart = "${pkgs.mako}/bin/mako";
+        ExecReload = "${pkgs.mako}/bin/makoctl reload";
+        Restart = "on-failure";
+        RestartSec = 1;
+      };
+      Install.WantedBy = [ "graphical-session.target" ];
     };
   };
 
@@ -644,10 +919,25 @@ in
       bind -r N display-popup -E '${tmuxProjectsBin} select --nvim'
       bind -r f display-popup -E '${tmuxProjectsBin} switch'
       bind -r w display-popup -E '${tmuxProjectsBin} windows'
+      bind -r O display-popup -E '${tmuxProjectsBin} oc-queue select'
       bind -r o last-window
       bind -r X kill-session
+
+      # Visiting a session clears it from the opencode attention queue, and so
+      # does returning focus to the terminal while it shows that session.
+      set-hook -g client-session-changed 'run-shell "${tmuxProjectsBin} oc-queue prune \"#{client_session}\""'
+      set-hook -g client-focus-in 'run-shell "${tmuxProjectsBin} oc-queue prune \"#{client_session}\""'
     '';
   };
+
+  # Apply tmux config changes (hooks, binds) to the running server on switch,
+  # so a manual prefix+r is not needed after rebuilds.
+  home.activation.reloadTmuxConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    tmux_socket="''${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/tmux-$(id -u)/default"
+    if [ -S "$tmux_socket" ]; then
+      run ${pkgs.tmux}/bin/tmux -S "$tmux_socket" source-file "${config.home.homeDirectory}/.config/tmux/tmux.conf" || true
+    fi
+  '';
 
   programs.zoxide = {
     enable = true;
@@ -877,6 +1167,21 @@ in
       Keywords=tmux;projects;worktree;terminal;ghostty;
     '';
     "applications/tmux-projects.desktop".force = true;
+
+    "applications/opencode-attention.desktop".text = ''
+      [Desktop Entry]
+      Name=OCS
+      GenericName=OpenCode Session Picker
+      Comment=Jump to a tmux session whose opencode run finished
+      Exec=${tmux-projects}/bin/tmux-projects oc-queue open
+      Icon=utilities-terminal
+      StartupNotify=false
+      Terminal=false
+      Type=Application
+      Categories=Development;Utility;TerminalEmulator;
+      Keywords=opencode;tmux;sessions;done;attention;
+    '';
+    "applications/opencode-attention.desktop".force = true;
   };
 
   xdg.configFile = {
@@ -892,6 +1197,49 @@ in
         "share": "disabled",
         "autoupdate": false
       }
+    '';
+    # Adds finished/errored opencode sessions to the tmux-projects attention
+    # queue, surfaced by the bar widget and popped with $mod+O.
+    "opencode/plugins/attention.js".text = ''
+      const TMUX_PROJECTS = "${tmuxProjectsBin}";
+
+      export const AttentionQueue = async ({ client, $ }) => {
+        if (!process.env.TMUX) return {};
+
+        let tmuxSession = "";
+        try {
+          tmuxSession = (await $`tmux display-message -p '#S'`.text()).trim();
+        } catch {
+          return {};
+        }
+        if (!tmuxSession) return {};
+
+        const enqueue = async (sessionID, status) => {
+          let title = sessionID;
+          try {
+            const session = await client.session.get({ path: { id: sessionID } });
+            if (session.data?.parentID) return; // ignore subagent sessions
+            title = session.data?.title || sessionID;
+          } catch {}
+          try {
+            await $`''${TMUX_PROJECTS} oc-queue add ''${tmuxSession} ''${status} ''${title}`.quiet();
+          } catch {}
+        };
+
+        return {
+          event: async ({ event }) => {
+            if (event.type === "session.idle" && event.properties?.sessionID) {
+              await enqueue(event.properties.sessionID, "done");
+            }
+            if (event.type === "session.error" && event.properties?.sessionID) {
+              await enqueue(event.properties.sessionID, "error");
+            }
+            if (event.type === "permission.asked" && event.properties?.sessionID) {
+              await enqueue(event.properties.sessionID, "permission");
+            }
+          },
+        };
+      };
     '';
     "opencode/tui.json".text = ''
       {

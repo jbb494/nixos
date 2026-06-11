@@ -38,7 +38,10 @@
     dns = "systemd-resolved";
   };
 
-  networking.firewall.trustedInterfaces = [ "tailscale0" ];
+  # Trust Docker bridges so containers can reach host services (e.g. a backend
+  # running on the host receiving MinIO's webhook via host.docker.internal).
+  # docker0 is the default bridge; br-+ matches docker-compose project bridges.
+  networking.firewall.trustedInterfaces = [ "tailscale0" "docker0" "br-+" ];
 
   systemd.services = {
     NetworkManager-wait-online.enable = true;

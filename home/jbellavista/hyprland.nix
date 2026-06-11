@@ -2,6 +2,7 @@
 
 let
   terminal = "ghostty";
+  tmuxProjectsBin = "/etc/profiles/per-user/jbellavista/bin/tmux-projects";
   wallpaper = "${pkgs.nixos-artwork.wallpapers.catppuccin-mocha.gnomeFilePath}";
   hyprwhspr = lib.getExe pkgs.hyprwhspr-rs;
   lockAndSuspend = pkgs.writeShellApplication {
@@ -40,6 +41,22 @@ let
 in
 {
   home.packages = [ jbellavista-shell pkgs.hyprlock pkgs.hyprpaper pkgs.hyprwhspr-rs ];
+
+  # Run the bar as a user service: sd-switch restarts it on every rebuild
+  # where the package changed, so the running bar always matches the config.
+  systemd.user.services.jbellavista-shell = {
+    Unit = {
+      Description = "jbellavista AGS shell";
+      After = [ "graphical-session.target" ];
+      PartOf = [ "graphical-session.target" ];
+    };
+    Service = {
+      ExecStart = "${jbellavista-shell}/bin/jbellavista-shell";
+      Restart = "on-failure";
+      RestartSec = 1;
+    };
+    Install.WantedBy = [ "graphical-session.target" ];
+  };
 
   xdg.dataFile."hyprwhspr-rs/models/ggml-base.en.bin".source = hyprwhsprModel;
 
@@ -110,10 +127,10 @@ in
 
       monitor = monitorRules;
 
+      # jbellavista-shell and mako run as systemd user services (see below and
+      # home.nix) so nixos-rebuild switch restarts them when they change.
       exec-once = [
-        "${jbellavista-shell}/bin/jbellavista-shell"
         "playerctld daemon"
-        "${pkgs.mako}/bin/mako"
         "${pkgs.hyprpaper}/bin/hyprpaper"
       ];
 
@@ -194,6 +211,7 @@ in
         "$mod, E, exec, ${lockAndSuspend}/bin/lock-and-suspend"
         "$mod, period, exit"
         "$mod, F12, exec, hyprctl switchxkblayout all next"
+        "$mod, O, exec, ${tmuxProjectsBin} oc-queue pop"
         ", Print, exec, ${hyprwhspr} record start"
 
         "$mod, H, movefocus, l"
