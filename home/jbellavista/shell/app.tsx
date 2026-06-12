@@ -55,6 +55,7 @@ const clock = Variable(GLib.DateTime.new_now_local()).poll(
 
 type OpencodeAttentionEntry = {
   session: string;
+  window?: string;
   title: string;
   status: string;
   ts: number;
@@ -122,7 +123,7 @@ const announceOpencodeSession = (session: string) => {
 const updateOpencodeQueue = () => {
   const previous = opencodeQueue.get();
   const next = readOpencodeQueue();
-  const fresh = next.filter((entry) => !previous.some((existing) => existing.session === entry.session && existing.ts === entry.ts));
+  const fresh = next.filter((entry) => !previous.some((existing) => existing.session === entry.session && (existing.window ?? '-') === (entry.window ?? '-') && existing.ts === entry.ts));
 
   opencodeQueue.set(next);
 
@@ -139,15 +140,15 @@ const updateOpencodeQueue = () => {
 updateOpencodeQueue();
 monitorFile(opencodeQueueFile, updateOpencodeQueue);
 
-const opencodeGoto = (session: string) => {
+const opencodeGoto = (session: string, window?: string) => {
   openOpencodePosition.set(null);
-  execAsync([tmuxProjectsBin, 'oc-queue', 'goto', session]).catch((error) => {
+  execAsync([tmuxProjectsBin, 'oc-queue', 'goto', session, window ?? '-']).catch((error) => {
     console.error(`Failed to jump to tmux session ${session}: ${error}`);
   });
 };
 
-const opencodePrune = (session: string) => {
-  execAsync([tmuxProjectsBin, 'oc-queue', 'prune', session]).catch((error) => {
+const opencodePrune = (session: string, window?: string) => {
+  execAsync([tmuxProjectsBin, 'oc-queue', 'prune', session, window ?? '-']).catch((error) => {
     console.error(`Failed to dismiss opencode queue entry ${session}: ${error}`);
   });
 };
@@ -1504,17 +1505,17 @@ const OpencodeDropdown = (monitor: number) => (
               className={`opencode-entry ${entry.status === 'error' ? 'error' : ''} ${entry.status === 'permission' ? 'permission' : ''}`}
               tooltipText={`Jump to ${entry.session}`}
               hexpand
-              onClick={() => opencodeGoto(entry.session)}
+              onClick={() => opencodeGoto(entry.session, entry.window)}
             >
               <box>
                 <label className="opencode-entry-icon" label={entry.status === 'error' ? '󰀦' : entry.status === 'permission' ? '󰋗' : '󰗠'} />
                 <box vertical hexpand>
                   <label className="opencode-entry-title" halign={Gtk.Align.START} truncate label={entry.title || entry.session} />
-                  <label className="opencode-entry-meta" halign={Gtk.Align.START} truncate label={entry.session} />
+                  <label className="opencode-entry-meta" halign={Gtk.Align.START} truncate label={`${entry.session}${entry.window && entry.window !== '-' ? ` · ${entry.window}` : ''}`} />
                 </box>
               </box>
             </button>
-            <button className="opencode-dismiss" tooltipText="Dismiss" onClick={() => opencodePrune(entry.session)}>
+            <button className="opencode-dismiss" tooltipText="Dismiss" onClick={() => opencodePrune(entry.session, entry.window)}>
               <label label="󰅖" />
             </button>
           </box>

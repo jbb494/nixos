@@ -358,9 +358,10 @@ let
         exec 9>&-
       }
 
-      # Prints "client_tty client_session" of the most recently active client.
+      # Prints "client_tty window_id client_session" of the most recently
+      # active client (window_id = the client's current window).
       oc_recent_client() {
-        "''${tmux_command[@]}" list-clients -F '#{client_activity} #{client_tty} #{client_session}' 2>/dev/null \
+        "''${tmux_command[@]}" list-clients -F '#{client_activity} #{client_tty} #{window_id} #{client_session}' 2>/dev/null \
           | sort -rn \
           | while read -r _ rest; do
               printf '%s' "$rest"
@@ -368,12 +369,17 @@ let
             done || true
       }
 
-      # The user is "watching" a session when ghostty is the focused window
-      # and the most recently active tmux client shows that session.
+      # The user is "watching" an entry when ghostty is the focused window and
+      # the most recently active tmux client shows that session — and, when a
+      # window is known, that specific window.
       oc_user_watching() {
         local session="$1"
+        local window="''${2:--}"
         local active_class=""
         local client_info=""
+        local rest=""
+        local client_window=""
+        local client_session=""
 
         active_class="$(hyprctl activewindow -j 2>/dev/null | jq -r '.class // .initialClass // ""' 2>/dev/null || true)"
         if [[ "$active_class" != "com.mitchellh.ghostty" ]]; then
@@ -382,45 +388,61 @@ let
 
         client_info="$(oc_recent_client)"
         [[ -n "$client_info" ]] || return 1
-        [[ "''${client_info#* }" == "$session" ]]
+        rest="''${client_info#* }"
+        client_window="''${rest%% *}"
+        client_session="''${rest#* }"
+
+        [[ "$client_session" == "$session" ]] || return 1
+
+        if [[ "$window" == "-" ]]; then
+          return 0
+        fi
+
+        [[ "$client_window" == "$window" ]]
       }
 
       oc_queue_add() {
         local session="''${1:-}"
-        local status="''${2:-done}"
-        shift 2 2>/dev/null || true
+        local window="''${2:--}"
+        local status="''${3:-done}"
+        shift 3 2>/dev/null || true
         local title="$*"
 
         if [[ -z "$session" ]]; then
-          printf 'usage: tmux-projects oc-queue add SESSION [STATUS] [TITLE...]\n' >&2
+          printf 'usage: tmux-projects oc-queue add SESSION [WINDOW] [STATUS] [TITLE...]\n' >&2
           exit 2
         fi
 
-        if oc_user_watching "$session"; then
+        if oc_user_watching "$session" "$window"; then
           exit 0
         fi
 
-        # shellcheck disable=SC2016 # $session/$title/$status are jq variables
+        # shellcheck disable=SC2016 # $session/$window/$title/$status are jq variables
         oc_queue_update \
-          'map(select(.session != $session)) + [{session: $session, title: $title, status: $status, ts: now}]' \
-          --arg session "$session" --arg status "$status" --arg title "''${title:-$session}"
+          'map(select((.session != $session) or ((.window // "-") != $window)))
+           + [{session: $session, window: $window, title: $title, status: $status, ts: now}]' \
+          --arg session "$session" --arg window "$window" --arg status "$status" --arg title "''${title:-$session}"
       }
 
-      # Removes a session's entry. Writes only when the entry exists, since
-      # this runs on every client focus-in and pointless writes would churn
-      # the file watchers (bar, picker).
+      # Removes entries for a session (all of them) or, when a window is
+      # given, only that window's entry plus unknown-window entries. Writes
+      # only when something matches, since this runs on every client focus-in
+      # and pointless writes would churn the file watchers (bar, picker).
       oc_queue_prune() {
         local session="''${1:-}"
+        local window="''${2:-}"
         local queue=""
+        local matcher=""
         [[ -n "$session" ]] || return 0
+
+        # shellcheck disable=SC2016 # $session/$window are jq variables
+        matcher='.session == $session and ($window == "" or (.window // "-") == $window or (.window // "-") == "-")'
 
         exec 9>"$oc_queue_file.lock"
         flock 9
         queue="$(oc_queue_read)"
-        # shellcheck disable=SC2016 # $session is a jq variable
-        if jq -e --arg session "$session" 'any(.[]; .session == $session)' <<<"$queue" >/dev/null; then
-          # shellcheck disable=SC2016 # $session is a jq variable
-          jq -c --arg session "$session" 'map(select(.session != $session))' <<<"$queue" >"$oc_queue_file.tmp"
+        if jq -e --arg session "$session" --arg window "$window" "any(.[]; $matcher)" <<<"$queue" >/dev/null; then
+          jq -c --arg session "$session" --arg window "$window" "map(select(($matcher) | not))" <<<"$queue" >"$oc_queue_file.tmp"
           mv "$oc_queue_file.tmp" "$oc_queue_file"
         fi
         exec 9>&-
@@ -428,13 +450,20 @@ let
 
       oc_goto_session() {
         local session="$1"
+        local window="''${2:--}"
         local client_info=""
         local client_tty=""
 
-        oc_queue_prune "$session"
+        oc_queue_prune "$session" "$window"
 
         if ! "''${tmux_command[@]}" has-session -t "=$session" 2>/dev/null; then
           return 0
+        fi
+
+        # Land on the entry's window (window ids are server-global; the id may
+        # be stale if the window was moved or closed, hence the || true).
+        if [[ "$window" != "-" ]]; then
+          "''${tmux_command[@]}" select-window -t "$window" 2>/dev/null || true
         fi
 
         client_info="$(oc_recent_client)"
@@ -453,6 +482,7 @@ let
         local queue=""
         local live=""
         local next=""
+        local next_window=""
 
         exec 9>"$oc_queue_file.lock"
         flock 9
@@ -460,15 +490,16 @@ let
         live="$({ "''${tmux_command[@]}" list-sessions -F '#{session_name}' 2>/dev/null || true; } | jq -R . | jq -s -c .)"
         queue="$(jq -c --argjson live "$live" 'map(select(.session as $s | $live | index($s)))' <<<"$queue")"
         next="$(jq -r '.[0].session // empty' <<<"$queue")"
+        next_window="$(jq -r '.[0].window // "-"' <<<"$queue")"
         jq -c '.[1:]' <<<"$queue" >"$oc_queue_file.tmp"
         mv "$oc_queue_file.tmp" "$oc_queue_file"
         exec 9>&-
 
         [[ -n "$next" ]] || return 0
-        oc_goto_session "$next"
+        oc_goto_session "$next" "$next_window"
       }
 
-      # Prints fzf input lines (session<TAB>icon<TAB>title) for live sessions.
+      # Prints fzf input lines (display<TAB>session<TAB>window) for live sessions.
       oc_queue_lines() {
         local queue=""
         local live=""
@@ -478,7 +509,7 @@ let
         jq -r --argjson live "$live" \
           'map(select(.session as $s | $live | index($s)))
            | .[]
-           | "\(if .status == "error" then "✗" elif .status == "permission" then "?" else "✓" end) \(.title | gsub("[\\n\\t]"; " "))  ·  \(.session)\t\(.session)"' \
+           | "\(if .status == "error" then "✗" elif .status == "permission" then "?" else "✓" end) \(.title | gsub("[\\n\\t]"; " "))  ·  \(.session)\(if (.window // "-") != "-" then " \(.window)" else "" end)\t\(.session)\t\(.window // "-")"' \
           <<<"$queue"
       }
 
@@ -514,6 +545,8 @@ let
       oc_queue_select() {
         local selection=""
         local session=""
+        local window=""
+        local rest=""
 
         selection="$(fzf </dev/null \
           --listen \
@@ -523,12 +556,18 @@ let
           --bind "start:reload($0 oc-queue lines)+execute-silent(nohup $0 oc-queue watch >/dev/null 2>&1 &)" \
           || true)"
         [[ -n "$selection" ]] || exit 0
-        session="''${selection##*$'\t'}"
+        window="''${selection##*$'\t'}"
+        rest="''${selection%$'\t'*}"
+        session="''${rest##*$'\t'}"
 
-        oc_queue_prune "$session"
+        oc_queue_prune "$session" "$window"
 
         if ! "''${tmux_command[@]}" has-session -t "=$session" 2>/dev/null; then
           exit 0
+        fi
+
+        if [[ "$window" != "-" ]]; then
+          "''${tmux_command[@]}" select-window -t "$window" 2>/dev/null || true
         fi
 
         if [[ -n "''${TMUX:-}" ]]; then
@@ -569,7 +608,7 @@ let
           add) oc_queue_add "$@" ;;
           pop) oc_queue_pop ;;
           prune) oc_queue_prune "$@" ;;
-          goto) oc_goto_session "''${1:?tmux-projects oc-queue goto SESSION}" ;;
+          goto) oc_goto_session "''${1:?tmux-projects oc-queue goto SESSION [WINDOW]}" "''${2:--}" ;;
           select) oc_queue_select ;;
           open) oc_queue_open ;;
           lines) oc_queue_lines ;;
@@ -923,10 +962,12 @@ in
       bind -r o last-window
       bind -r X kill-session
 
-      # Visiting a session clears it from the opencode attention queue, and so
-      # does returning focus to the terminal while it shows that session.
-      set-hook -g client-session-changed 'run-shell "${tmuxProjectsBin} oc-queue prune \"#{client_session}\""'
-      set-hook -g client-focus-in 'run-shell "${tmuxProjectsBin} oc-queue prune \"#{client_session}\""'
+      # Visiting an entry's tmux window clears it from the opencode attention
+      # queue: switching sessions, switching windows within a session, and
+      # returning focus to the terminal all prune what is now visible.
+      set-hook -g client-session-changed 'run-shell "${tmuxProjectsBin} oc-queue prune \"#{client_session}\" \"#{window_id}\""'
+      set-hook -g client-focus-in 'run-shell "${tmuxProjectsBin} oc-queue prune \"#{client_session}\" \"#{window_id}\""'
+      set-hook -g session-window-changed 'run-shell "${tmuxProjectsBin} oc-queue prune \"#{session_name}\" \"#{window_id}\""'
     '';
   };
 
@@ -1207,8 +1248,14 @@ in
         if (!process.env.TMUX) return {};
 
         let tmuxSession = "";
+        let tmuxWindow = "-";
         try {
-          tmuxSession = (await $`tmux display-message -p '#S'`.text()).trim();
+          const info = (await $`tmux display-message -p '#{window_id} #S'`.text()).trim();
+          const spaceIndex = info.indexOf(" ");
+          if (spaceIndex > 0) {
+            tmuxWindow = info.slice(0, spaceIndex);
+            tmuxSession = info.slice(spaceIndex + 1);
+          }
         } catch {
           return {};
         }
@@ -1222,7 +1269,7 @@ in
             title = session.data?.title || sessionID;
           } catch {}
           try {
-            await $`''${TMUX_PROJECTS} oc-queue add ''${tmuxSession} ''${status} ''${title}`.quiet();
+            await $`''${TMUX_PROJECTS} oc-queue add ''${tmuxSession} ''${tmuxWindow} ''${status} ''${title}`.quiet();
           } catch {}
         };
 
