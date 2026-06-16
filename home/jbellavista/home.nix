@@ -1247,19 +1247,22 @@ in
       export const AttentionQueue = async ({ client, $ }) => {
         if (!process.env.TMUX) return {};
 
-        let tmuxSession = "";
-        let tmuxWindow = "-";
-        try {
-          const info = (await $`tmux display-message -p '#{window_id} #S'`.text()).trim();
-          const spaceIndex = info.indexOf(" ");
-          if (spaceIndex > 0) {
-            tmuxWindow = info.slice(0, spaceIndex);
-            tmuxSession = info.slice(spaceIndex + 1);
-          }
-        } catch {
-          return {};
-        }
-        if (!tmuxSession) return {};
+        const tmuxPane = process.env.TMUX_PANE;
+        if (!tmuxPane) return {};
+
+        const tmuxContext = async () => {
+          try {
+            const info = (await $`tmux display-message -p -t ''${tmuxPane} '#{window_id} #S'`.text()).trim();
+            const spaceIndex = info.indexOf(" ");
+            if (spaceIndex > 0) {
+              return {
+                window: info.slice(0, spaceIndex),
+                session: info.slice(spaceIndex + 1),
+              };
+            }
+          } catch {}
+          return null;
+        };
 
         const enqueue = async (sessionID, status) => {
           let title = sessionID;
@@ -1268,8 +1271,12 @@ in
             if (session.data?.parentID) return; // ignore subagent sessions
             title = session.data?.title || sessionID;
           } catch {}
+
+          const tmux = await tmuxContext();
+          if (!tmux?.session) return;
+
           try {
-            await $`''${TMUX_PROJECTS} oc-queue add ''${tmuxSession} ''${tmuxWindow} ''${status} ''${title}`.quiet();
+            await $`''${TMUX_PROJECTS} oc-queue add ''${tmux.session} ''${tmux.window} ''${status} ''${title}`.quiet();
           } catch {}
         };
 
