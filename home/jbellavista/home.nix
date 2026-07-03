@@ -1364,9 +1364,11 @@ in
             if (event.type === "session.error" && event.properties?.sessionID) {
               await enqueue(event.properties.sessionID, "error");
             }
-            if (event.type === "permission.asked" && event.properties?.sessionID) {
-              await enqueue(event.properties.sessionID, "permission");
-            }
+            // Disabled: permission.asked fires even under --auto (the TUI
+            // auto-replies client-side), producing stale notifications.
+            // if (event.type === "permission.asked" && event.properties?.sessionID) {
+            //   await enqueue(event.properties.sessionID, "permission");
+            // }
           },
         };
       };
