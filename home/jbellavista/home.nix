@@ -2,6 +2,7 @@
 , config
 , lib
 , masterPkgs
+, opencodeLinearMcp
 , opencodePersonalProfile
 , pkgs
 , ...
@@ -26,6 +27,16 @@ let
       "XDG_CACHE_HOME=${dirs.cacheHome}"
     ];
   personalOpencodeProfileDirs = opencodeProfileDirs "personal";
+
+  # Single source of truth for opencode feature flags. Projected into both
+  # login-shell env (home.sessionVariables -> TUI instances) and the web
+  # service units (Environment=), which do not inherit login-shell env.
+  opencodeEnv = {
+    # Enables `background: true` on the task tool so an orchestrator agent
+    # can spawn subagents asynchronously and keep working (opencode >= 1.17).
+    OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS = "true";
+  };
+  opencodeEnvList = lib.mapAttrsToList (name: value: "${name}=${value}") opencodeEnv;
 
   # Wrap bun so prebuilt native addons (sharp, canvas, sqlite3, ...) can dlopen
   # libstdc++.so.6 on NixOS. Scoped to bun only — no global LD_LIBRARY_PATH.
@@ -651,12 +662,12 @@ let
       Service = {
         Type = "simple";
         WorkingDirectory = opencodeDefaultProject;
-        ExecStart = "${pkgs.opencode}/bin/opencode serve --hostname 0.0.0.0 --port ${toString port}";
+        ExecStart = "${masterPkgs.opencode}/bin/opencode serve --hostname 0.0.0.0 --port ${toString port}";
         Restart = "on-failure";
         RestartSec = 5;
         Environment = [
           "LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ]}"
-        ] ++ profileEnv;
+        ] ++ profileEnv ++ opencodeEnvList;
       };
 
       Install.WantedBy = [ "default.target" ];
@@ -682,7 +693,7 @@ in
       EDITOR = "nvim";
       JAVA_HOME = pkgs.jdk21.home;
       TERMINAL = "ghostty";
-    };
+    } // opencodeEnv;
     pointerCursor = {
       name = "Adwaita";
       package = pkgs.adwaita-icon-theme;
@@ -1232,12 +1243,77 @@ in
       keybind = ctrl+enter=unbind
     '';
     "nvim".source = inputs.nvim-config;
-    "opencode/config.json".text = ''
-      {
-        "$schema": "https://opencode.ai/config.json",
-        "share": "disabled",
-        "autoupdate": false
-      }
+    "opencode/config.json".text = builtins.toJSON ({
+      "$schema" = "https://opencode.ai/config.json";
+      share = "disabled";
+      autoupdate = false;
+      default_agent = "orchestrator";
+      agent = {
+        general = { model = "openai/gpt-5.5"; reasoningEffort = "medium"; };
+        explore = { model = "openai/gpt-5.5"; reasoningEffort = "medium"; };
+        minion = {
+          mode = "subagent";
+          description = "Implementation worker. Executes one well-scoped coding task end to end (edit, run, verify) and reports back concisely.";
+          model = "openai/gpt-5.5";
+          reasoningEffort = "medium";
+          permission = { edit = "allow"; bash = "allow"; };
+        };
+      };
+    } // lib.optionalAttrs opencodeLinearMcp {
+      # Linear MCP is host-specific; enabled per host via extraSpecialArgs.
+      mcp."linear-server" = {
+        type = "remote";
+        url = "https://mcp.linear.app/mcp";
+        oauth = { };
+      };
+    });
+    # Orchestrator + minion pattern: an expensive planning model (fable)
+    # delegates all implementation to cheap background minions (gpt-5.5).
+    "opencode/agents/orchestrator.md".text = ''
+      ---
+      description: Fable orchestrator that delegates all implementation to background minions
+      mode: primary
+      model: anthropic/claude-fable-5
+      permission:
+        edit: deny
+        bash:
+          "*": ask
+          "git status*": allow
+          "git diff*": allow
+          "git log*": allow
+      ---
+
+      You are an orchestrator: you own all research direction and design
+      decisions, and you delegate implementation to `minion` subagents.
+
+      Research — delegate breadth, keep depth:
+      - Do targeted research yourself with read/grep/glob: following a chain
+        of clues, checking a signature, confirming a pattern. Direct lookups
+        take seconds; a delegated explore costs minutes per round trip.
+      - Never chain serial research tasks. If a finding raises a follow-up
+        question, answer it yourself directly.
+      - Delegate research only when it is broad and self-contained (e.g. "map
+        how subsystem X works") or when several independent questions can run
+        in parallel — then launch them all at once, in the background.
+      - When delegating research, always specify the output contract: "Report
+        facts only — relevant files with line numbers, existing patterns,
+        constraints, and test commands. Do NOT propose an implementation
+        approach."
+
+      Subagent reports are evidence, not advice. Subagents run weaker models:
+      use their factual findings, but disregard any implementation proposals
+      they make. Design decisions are yours alone.
+
+      Implementation:
+      - Break work into independent, well-scoped tasks and delegate each to
+        the `minion` subagent via the task tool with `background: true`.
+      - Write detailed, self-contained task prompts: files involved, expected
+        outcome, and how to verify (test/typecheck commands).
+      - Never launch two background tasks that touch the same files.
+      - After launching background tasks, keep planning or launch more
+        non-overlapping tasks — never poll or idle.
+      - Review results as they arrive; steer a running task by reusing its
+        task_id.
     '';
     # Adds finished/errored opencode sessions to the tmux-projects attention
     # queue, surfaced by the bar widget and popped with $mod+O.

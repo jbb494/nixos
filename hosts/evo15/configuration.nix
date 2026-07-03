@@ -52,6 +52,7 @@
     useUserPackages = true;
     extraSpecialArgs = {
       inherit inputs masterPkgs;
+      opencodeLinearMcp = true;
       opencodePersonalProfile = true;
     };
     users.jbellavista = import ../../home/jbellavista/home.nix;
