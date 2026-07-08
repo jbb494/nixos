@@ -298,21 +298,21 @@ let
 
         session_name="$(printf '%s' "$selection" | tr '/.:' '___')"
 
-        if ! "''${tmux_command[@]}" has-session -t "$session_name" 2>/dev/null; then
+        if ! "''${tmux_command[@]}" has-session -t "=$session_name" 2>/dev/null; then
           "''${tmux_command[@]}" new-session -d -s "$session_name" -c "$path"
         fi
 
         if [[ -n "''${TMUX:-}" ]]; then
-          "''${tmux_command[@]}" switch-client -t "$session_name"
+          "''${tmux_command[@]}" switch-client -t "=$session_name"
           exit 0
         fi
 
         if [[ "''${TMUX_PROJECTS_KEEP_SHELL:-0}" == "1" ]]; then
-          "''${tmux_command[@]}" attach-session -t "$session_name"
+          "''${tmux_command[@]}" attach-session -t "=$session_name"
           exec "''${SHELL:-${pkgs.zsh}/bin/zsh}" -l
         fi
 
-        exec "''${tmux_command[@]}" attach-session -t "$session_name"
+        exec "''${tmux_command[@]}" attach-session -t "=$session_name"
       }
 
       switch_session() {
@@ -324,7 +324,7 @@ let
           | fzf --tiebreak=index --prompt='Sessions> ')"
 
         [[ -n "$selection" ]] || exit 0
-        "''${tmux_command[@]}" switch-client -t "$selection"
+        "''${tmux_command[@]}" switch-client -t "=$selection"
       }
 
       switch_window() {
