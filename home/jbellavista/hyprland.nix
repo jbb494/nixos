@@ -1,10 +1,9 @@
-{ config, lib, osConfig, pkgs, ... }:
+{ config, osConfig, pkgs, ... }:
 
 let
   terminal = "ghostty";
   tmuxProjectsBin = "/etc/profiles/per-user/jbellavista/bin/tmux-projects";
   wallpaper = "${pkgs.nixos-artwork.wallpapers.catppuccin-mocha.gnomeFilePath}";
-  hyprwhspr = lib.getExe pkgs.hyprwhspr-rs;
   lockAndSuspend = pkgs.writeShellApplication {
     name = "lock-and-suspend";
     runtimeInputs = with pkgs; [
@@ -17,10 +16,6 @@ let
       sleep 1
       systemctl suspend
     '';
-  };
-  hyprwhsprModel = pkgs.fetchurl {
-    url = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin";
-    hash = "sha256-oDd5yG3zMjB19eeWyyzlAp8A7Ihp7uP9+4l6/jbG0AI=";
   };
   rollnrollShellModule = config.programs.rollnroll-devtools.ags.shellModule or null;
   rollnrollRuntimePackages = config.programs.rollnroll-devtools.ags.runtimePackages or [ ];
@@ -40,7 +35,7 @@ let
     ];
 in
 {
-  home.packages = [ jbellavista-shell pkgs.hyprlock pkgs.hyprpaper pkgs.hyprwhspr-rs ];
+  home.packages = [ jbellavista-shell pkgs.hyprlock pkgs.hyprpaper ];
 
   # Run the bar as a user service: sd-switch restarts it on every rebuild
   # where the package changed, so the running bar always matches the config.
@@ -57,22 +52,6 @@ in
     };
     Install.WantedBy = [ "graphical-session.target" ];
   };
-
-  xdg.dataFile."hyprwhspr-rs/models/ggml-base.en.bin".source = hyprwhsprModel;
-
-  xdg.configFile."hyprwhspr-rs/config.jsonc".text = ''
-    {
-      "audio_feedback": true,
-      "auto_copy_clipboard": true,
-      "transcription": {
-        "provider": "whisper_cpp",
-        "whisper_cpp": {
-          "model": "base.en",
-          "models_dirs": ["~/.local/share/hyprwhspr-rs/models"]
-        }
-      }
-    }
-  '';
 
   xdg.configFile."hypr/hyprpaper.conf".text = ''
     wallpaper {
@@ -212,8 +191,6 @@ in
         "$mod, period, exit"
         "$mod, F12, exec, hyprctl switchxkblayout all next"
         "$mod, O, exec, ${tmuxProjectsBin} oc-queue pop"
-        ", Print, exec, ${hyprwhspr} record start"
-
         "$mod, H, movefocus, l"
         "$mod, J, movefocus, d"
         "$mod, K, movefocus, u"
@@ -265,10 +242,6 @@ in
         "$mod SHIFT, left, resizeactive, -30 0"
         "$mod SHIFT, up, resizeactive, 0 -30"
         "$mod SHIFT, down, resizeactive, 0 30"
-      ];
-
-      bindr = [
-        ", Print, exec, ${hyprwhspr} record stop"
       ];
 
       bindl = [
