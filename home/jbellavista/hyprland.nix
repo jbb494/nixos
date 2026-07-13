@@ -17,6 +17,43 @@ let
       systemctl suspend
     '';
   };
+  keyboardMode = { name, globalLayout, ergodoxLayout, layoutIndex, label, color }: pkgs.writeShellApplication {
+    inherit name;
+    runtimeInputs = [ pkgs.hyprland ];
+    text = ''
+      set_ergodox_layout() {
+        local device="$1"
+        hyprctl --quiet keyword "device[$device]:kb_layout" "${ergodoxLayout}"
+        hyprctl --quiet keyword "device[$device]:kb_variant" ","
+        hyprctl --quiet keyword "device[$device]:kb_options" "grp:alt_shift_toggle"
+      }
+
+      set_ergodox_layout zsa-technology-labs-ergodox-ez
+      set_ergodox_layout zsa-technology-labs-ergodox-ez-keyboard
+
+      hyprctl --quiet keyword input:kb_layout "${globalLayout}"
+      hyprctl --quiet keyword input:kb_variant ","
+      hyprctl --quiet keyword input:kb_options "grp:alt_shift_toggle"
+      hyprctl --quiet switchxkblayout all ${toString layoutIndex}
+      hyprctl notify 2 1500 "rgb(${color})" "${label}" || true
+    '';
+  };
+  keyboardNormalMode = keyboardMode {
+    name = "keyboard-normal-mode";
+    globalLayout = "es,us";
+    ergodoxLayout = "ergodox-dvorak,us";
+    layoutIndex = 0;
+    label = "Keyboard: normal";
+    color = "a6e3a1";
+  };
+  keyboardGamingMode = keyboardMode {
+    name = "keyboard-gaming-mode";
+    globalLayout = "us,us";
+    ergodoxLayout = "us,us";
+    layoutIndex = 0;
+    label = "Keyboard: QWERTY gaming";
+    color = "f9e2af";
+  };
   rollnrollShellModule = config.programs.rollnroll-devtools.ags.shellModule or null;
   rollnrollRuntimePackages = config.programs.rollnroll-devtools.ags.runtimePackages or [ ];
   jbellavista-shell = pkgs.callPackage ../../packages/jbellavista-shell.nix {
@@ -189,6 +226,9 @@ in
         "$mod SHIFT, Space, togglefloating"
         "$mod, E, exec, ${lockAndSuspend}/bin/lock-and-suspend"
         "$mod, period, exit"
+        # Physical F-keys: reliable even when the active layout changes.
+        "$mod, code:67, exec, ${keyboardNormalMode}/bin/keyboard-normal-mode"
+        "$mod, code:68, exec, ${keyboardGamingMode}/bin/keyboard-gaming-mode"
         "$mod, F12, exec, hyprctl switchxkblayout all next"
         "$mod, O, exec, ${tmuxProjectsBin} oc-queue pop"
         "$mod, H, movefocus, l"
