@@ -1,4 +1,4 @@
-{ config, osConfig, pkgs, ... }:
+{ config, pkgs, ... }:
 
 let
   terminal = "ghostty";
@@ -19,8 +19,11 @@ let
   };
   keyboardMode = { name, globalLayout, ergodoxLayout, layoutIndex, label, color }: pkgs.writeShellApplication {
     inherit name;
-    runtimeInputs = [ pkgs.hyprland ];
+    runtimeInputs = [ pkgs.coreutils pkgs.hyprland ];
     text = ''
+      # Let the shortcut modifiers be released before replacing the XKB map.
+      sleep 0.35
+
       set_ergodox_layout() {
         local device="$1"
         hyprctl --quiet keyword "device[$device]:kb_layout" "${ergodoxLayout}"
@@ -59,17 +62,10 @@ let
   jbellavista-shell = pkgs.callPackage ../../packages/jbellavista-shell.nix {
     inherit rollnrollShellModule rollnrollRuntimePackages;
   };
-  hostName = osConfig.networking.hostName or "";
-  monitorRules =
-    if hostName == "desktop" then [
-      # Desktop DisplayPort exposes the ultrawide's native high-refresh mode.
-      "DP-1, 3440x1440@143.97, auto, 1"
-      ", preferred, auto, 1"
-    ] else [
-      # Fallback for unspecified monitors: preferred mode, auto-placed, scale 1.
-      # Avoids selecting lower-resolution high-refresh modes on the laptop/dock.
-      ", preferred, auto, 1"
-    ];
+  monitorRules = [
+    # Select each monitor's highest resolution, then highest refresh rate.
+    ", highres, auto, 1"
+  ];
 in
 {
   home.packages = [ jbellavista-shell pkgs.hyprlock pkgs.hyprpaper ];
@@ -226,9 +222,6 @@ in
         "$mod SHIFT, Space, togglefloating"
         "$mod, E, exec, ${lockAndSuspend}/bin/lock-and-suspend"
         "$mod, period, exit"
-        # Physical F-keys: reliable even when the active layout changes.
-        "$mod, code:67, exec, ${keyboardNormalMode}/bin/keyboard-normal-mode"
-        "$mod, code:68, exec, ${keyboardGamingMode}/bin/keyboard-gaming-mode"
         "$mod, F12, exec, hyprctl switchxkblayout all next"
         "$mod, O, exec, ${tmuxProjectsBin} oc-queue pop"
         "$mod, H, movefocus, l"
@@ -275,6 +268,13 @@ in
         ", XF86AudioNext, exec, playerctl -p playerctld next"
         ", XF86AudioPrev, exec, playerctl -p playerctld previous"
         ", XF86AudioStop, exec, playerctl -p playerctld stop"
+      ];
+
+      # Run layout changes on F-key release; the scripts then wait briefly so
+      # rebuilding XKB cannot swallow the release of Super.
+      bindr = [
+        "$mod, code:67, exec, ${keyboardNormalMode}/bin/keyboard-normal-mode"
+        "$mod, code:68, exec, ${keyboardGamingMode}/bin/keyboard-gaming-mode"
       ];
 
       binde = [
