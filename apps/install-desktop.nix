@@ -6,8 +6,8 @@ callPackage ./install-system.nix {
   defaultDisk = "/dev/nvme0n1";
   defaultFlakeRef = "github:jbb494/nixos#desktop-bootstrap";
   flakeRefExample = "github:jbb494/nixos#desktop-bootstrap";
-  diskModelPattern = "Samsung SSD 980 PRO 2TB";
-  diskDescription = "the desktop Samsung 980 PRO 2TB NVMe";
+  diskModelPattern = "WD_BLACK SN7100 2TB";
+  diskDescription = "the desktop WD_BLACK SN7100 2TB NVMe";
   postInstallInstructions = ''
     if [[ "''${flake_attr}" == "desktop-bootstrap" ]]; then
       echo
