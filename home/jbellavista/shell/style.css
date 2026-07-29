@@ -339,6 +339,11 @@
   padding: 6px 2px;
 }
 
+.bluetooth-error {
+  margin: 5px 2px 0;
+  color: #f38ba8;
+}
+
 .network-menu-header,
 .network-section-heading {
   margin-bottom: 6px;

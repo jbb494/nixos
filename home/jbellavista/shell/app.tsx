@@ -40,6 +40,8 @@ const stagedWifiPassword = Variable('');
 const wifiConnectingBssid = Variable<string | null>(null);
 const wifiConnectionError = Variable('');
 const savedWifiConnections = Variable<Map<string, string>>(new Map());
+const bluetoothBusyAddress = Variable<string | null>(null);
+const bluetoothConnectionError = Variable('');
 const dropdownMarginTop = 72;
 let networkManagerClient: NM.Client;
 const watchedMediaPlayers = new Set<string>();
@@ -1107,13 +1109,45 @@ const toggleBluetoothDiscovery = () => {
 };
 
 const toggleBluetoothDevice = (device: AstalBluetooth.Device) => {
+  if (bluetoothBusyAddress.get() !== null) {
+    return;
+  }
+
+  const name = device.alias ?? device.name ?? device.address;
+  const finish = () => bluetoothBusyAddress.set(null);
+  const fail = (action: string, error: unknown) => {
+    const message = `Failed to ${action} ${name}: ${error}`;
+    console.error(message);
+    bluetoothConnectionError.set(message);
+    finish();
+  };
+
+  bluetoothBusyAddress.set(device.address);
+  bluetoothConnectionError.set('');
+
   if (device.connected) {
     device.disconnect_device((_, result) => {
       try {
         device.disconnect_device_finish(result);
+        finish();
       } catch (error) {
-        console.error(`Failed to disconnect Bluetooth device ${device.alias ?? device.name}: ${error}`);
+        fail('disconnect', error);
       }
+    });
+    return;
+  }
+
+  if (!device.paired) {
+    GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+      try {
+        device.pair();
+        device.set_trusted(true);
+        finish();
+      } catch (error) {
+        fail('pair', error);
+      }
+
+      return GLib.SOURCE_REMOVE;
     });
     return;
   }
@@ -1121,14 +1155,19 @@ const toggleBluetoothDevice = (device: AstalBluetooth.Device) => {
   device.connect_device((_, result) => {
     try {
       device.connect_device_finish(result);
+      finish();
     } catch (error) {
-      console.error(`Failed to connect Bluetooth device ${device.alias ?? device.name}: ${error}`);
+      fail('connect', error);
     }
   });
 };
 
 const BluetoothDeviceRow = ({ device }: { device: AstalBluetooth.Device }) => (
-  <button className={bind(device, 'connected').as((connected) => `bluetooth-device ${connected ? 'active' : ''}`)} onClick={() => toggleBluetoothDevice(device)}>
+  <button
+    className={bind(device, 'connected').as((connected) => `bluetooth-device ${connected ? 'active' : ''}`)}
+    sensitive={bind(bluetoothBusyAddress).as((address) => address === null)}
+    onClick={() => toggleBluetoothDevice(device)}
+  >
     <box>
       <label className="bluetooth-device-icon" label={bind(device, 'connected').as((connected) => (connected ? '󰂱' : '󰂯'))} />
       <box vertical hexpand>
@@ -1137,8 +1176,8 @@ const BluetoothDeviceRow = ({ device }: { device: AstalBluetooth.Device }) => (
           className="bluetooth-device-meta"
           halign={Gtk.Align.START}
           label={Variable.derive(
-            [bind(device, 'connected'), bind(device, 'paired'), bind(device, 'batteryPercentage')],
-            (connected, paired, batteryPercentage) => `${connected ? 'Connected' : paired ? 'Paired' : 'Available'}${batteryPercentage >= 0 ? ` · ${Math.round(batteryPercentage * 100)}%` : ''}`,
+            [bind(device, 'connected'), bind(device, 'paired'), bind(device, 'batteryPercentage'), bind(bluetoothBusyAddress)],
+            (connected, paired, batteryPercentage, busyAddress) => `${busyAddress === device.address ? (connected ? 'Disconnecting...' : paired ? 'Connecting...' : 'Pairing...') : connected ? 'Connected' : paired ? 'Paired' : 'Available'}${batteryPercentage >= 0 ? ` · ${Math.round(batteryPercentage * 100)}%` : ''}`,
           )()}
         />
       </box>
@@ -1220,6 +1259,7 @@ const BluetoothDropdown = (monitor: number) => (
                 })}
               </box>
             </scrollable>
+            <label className="bluetooth-error" halign={Gtk.Align.START} visible={bind(bluetoothConnectionError).as((error) => error.length > 0)} label={bind(bluetoothConnectionError)} wrap />
           </box>
         );
       })}
