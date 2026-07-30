@@ -926,6 +926,9 @@ in
   programs.rofi = {
     enable = true;
     package = pkgs.rofi;
+    extraConfig = {
+      "drun-match-fields" = "name,generic,keywords";
+    };
   };
 
   programs.tmux = {
