@@ -1254,7 +1254,7 @@ in
         minion = {
           mode = "subagent";
           description = "Implementation worker. Executes one well-scoped coding task end to end (edit, run, verify) and reports back concisely.";
-          model = "openai/gpt-5.5";
+          model = "openai/gpt-5.6-sol";
           reasoningEffort = "medium";
           permission = { edit = "allow"; bash = "allow"; };
         };
@@ -1268,7 +1268,7 @@ in
       };
     });
     # Orchestrator + minion pattern: an expensive planning model (fable)
-    # delegates all implementation to cheap background minions (gpt-5.5).
+    # delegates all implementation to cheap background minions (gpt-5.6-sol).
     "opencode/agents/orchestrator.md".text = ''
       ---
       description: Fable orchestrator that delegates all implementation to background minions
