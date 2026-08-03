@@ -15,6 +15,11 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    lanzaboote = {
+      url = "github:nix-community/lanzaboote";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     nvim-config = {
       url = "github:jbb494/nvim";
       flake = false;
@@ -68,6 +73,7 @@
         modules = [
           disko.nixosModules.disko
           home-manager.nixosModules.home-manager
+          inputs.lanzaboote.nixosModules.lanzaboote
           ./hosts/desktop/configuration.nix
         ];
       };

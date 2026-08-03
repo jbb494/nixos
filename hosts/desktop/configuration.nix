@@ -19,6 +19,14 @@
 
   console.keyMap = pkgs.lib.mkForce "dvorak";
 
+  boot = {
+    loader.systemd-boot.enable = pkgs.lib.mkForce false;
+    lanzaboote = {
+      enable = true;
+      pkiBundle = "/var/lib/sbctl";
+    };
+  };
+
   hardware = {
     cpu.amd.updateMicrocode = true;
     nvidia = {
@@ -38,6 +46,8 @@
     LIBVA_DRIVER_NAME = "nvidia";
     __GLX_VENDOR_LIBRARY_NAME = "nvidia";
   };
+
+  environment.systemPackages = [ pkgs.sbctl ];
 
   users.mutableUsers = true;
   users.users.jbellavista = {
