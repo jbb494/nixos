@@ -38,6 +38,42 @@ let
   };
   opencodeEnvList = lib.mapAttrsToList (name: value: "${name}=${value}") opencodeEnv;
 
+  # Shared prompt for orchestrator agents; parameterized by the minion
+  # subagent they delegate implementation to.
+  opencodeOrchestratorPrompt = minionName: ''
+    You are an orchestrator: you own all research direction and design
+    decisions, and you delegate implementation to `${minionName}` subagents.
+
+    Research — delegate breadth, keep depth:
+    - Do targeted research yourself with read/grep/glob: following a chain
+      of clues, checking a signature, confirming a pattern. Direct lookups
+      take seconds; a delegated explore costs minutes per round trip.
+    - Never chain serial research tasks. If a finding raises a follow-up
+      question, answer it yourself directly.
+    - Delegate research only when it is broad and self-contained (e.g. "map
+      how subsystem X works") or when several independent questions can run
+      in parallel — then launch them all at once, in the background.
+    - When delegating research, always specify the output contract: "Report
+      facts only — relevant files with line numbers, existing patterns,
+      constraints, and test commands. Do NOT propose an implementation
+      approach."
+
+    Subagent reports are evidence, not advice. Subagents run weaker models:
+    use their factual findings, but disregard any implementation proposals
+    they make. Design decisions are yours alone.
+
+    Implementation:
+    - Break work into independent, well-scoped tasks and delegate each to
+      the `${minionName}` subagent via the task tool with `background: true`.
+    - Write detailed, self-contained task prompts: files involved, expected
+      outcome, and how to verify (test/typecheck commands).
+    - Never launch two background tasks that touch the same files.
+    - After launching background tasks, keep planning or launch more
+      non-overlapping tasks — never poll or idle.
+    - Review results as they arrive; steer a running task by reusing its
+      task_id.
+  '';
+
   # Wrap bun so prebuilt native addons (sharp, canvas, sqlite3, ...) can dlopen
   # libstdc++.so.6 on NixOS. Scoped to bun only — no global LD_LIBRARY_PATH.
   bun = pkgs.symlinkJoin {
@@ -662,7 +698,7 @@ let
       Service = {
         Type = "simple";
         WorkingDirectory = opencodeDefaultProject;
-        ExecStart = "${masterPkgs.opencode}/bin/opencode serve --hostname 0.0.0.0 --port ${toString port}";
+        ExecStart = "${masterPkgs.opencode}/bin/opencode serve --hostname 127.0.0.1 --port ${toString port}";
         Restart = "on-failure";
         RestartSec = 5;
         Environment = [
@@ -672,6 +708,27 @@ let
 
       Install.WantedBy = [ "default.target" ];
     };
+
+  # Registers a tailnet-only HTTPS endpoint (via `tailscale serve`) that
+  # proxies to a local opencode server. Requires tailscaled's operator user
+  # to be jbellavista (set on the system side), so no root is needed.
+  opencodeTailscaleServe = port: {
+    Unit = {
+      Description = "Tailscale HTTPS serve for opencode on port ${toString port}";
+    };
+
+    Service = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStart = "${pkgs.tailscale}/bin/tailscale serve --bg --https=${toString port} http://127.0.0.1:${toString port}";
+      ExecStop = "${pkgs.tailscale}/bin/tailscale serve --https=${toString port} off";
+      # Retry until tailscaled is up after login.
+      Restart = "on-failure";
+      RestartSec = 5;
+    };
+
+    Install.WantedBy = [ "default.target" ];
+  };
 in
 
 {
@@ -781,6 +838,8 @@ in
       port = 4097;
       profile = "personal";
     };
+    opencode-web-tailscale = opencodeTailscaleServe 4096;
+    opencode-web-personal-tailscale = opencodeTailscaleServe 4097;
 
     # Mirrors the unit shipped in the mako package (not enableable
     # declaratively), shadowed via ~/.config/systemd/user so sd-switch manages
@@ -1261,6 +1320,13 @@ in
           reasoningEffort = "medium";
           permission = { edit = "allow"; bash = "allow"; };
         };
+        fable-minion = {
+          mode = "subagent";
+          description = "Implementation worker on fable-5 with a low thinking budget. Executes one well-scoped coding task end to end (edit, run, verify) and reports back concisely.";
+          model = "anthropic/claude-fable-5";
+          options.thinking = { type = "enabled"; budgetTokens = 4096; };
+          permission = { edit = "allow"; bash = "allow"; };
+        };
       };
     } // lib.optionalAttrs opencodeLinearMcp {
       # Linear MCP is host-specific; enabled per host via extraSpecialArgs.
@@ -1286,38 +1352,28 @@ in
           "git log*": allow
       ---
 
-      You are an orchestrator: you own all research direction and design
-      decisions, and you delegate implementation to `minion` subagents.
+    '' + opencodeOrchestratorPrompt "minion";
+    # All-fable variant: fable-5 planning with a high thinking budget,
+    # delegating to low-thinking fable-5 minions.
+    "opencode/agents/fable-orchestrator.md".text = ''
+      ---
+      description: Fable orchestrator that delegates all implementation to background fable-5 minions
+      mode: primary
+      model: anthropic/claude-fable-5
+      options:
+        thinking:
+          type: enabled
+          budgetTokens: 16384
+      permission:
+        edit: deny
+        bash:
+          "*": ask
+          "git status*": allow
+          "git diff*": allow
+          "git log*": allow
+      ---
 
-      Research — delegate breadth, keep depth:
-      - Do targeted research yourself with read/grep/glob: following a chain
-        of clues, checking a signature, confirming a pattern. Direct lookups
-        take seconds; a delegated explore costs minutes per round trip.
-      - Never chain serial research tasks. If a finding raises a follow-up
-        question, answer it yourself directly.
-      - Delegate research only when it is broad and self-contained (e.g. "map
-        how subsystem X works") or when several independent questions can run
-        in parallel — then launch them all at once, in the background.
-      - When delegating research, always specify the output contract: "Report
-        facts only — relevant files with line numbers, existing patterns,
-        constraints, and test commands. Do NOT propose an implementation
-        approach."
-
-      Subagent reports are evidence, not advice. Subagents run weaker models:
-      use their factual findings, but disregard any implementation proposals
-      they make. Design decisions are yours alone.
-
-      Implementation:
-      - Break work into independent, well-scoped tasks and delegate each to
-        the `minion` subagent via the task tool with `background: true`.
-      - Write detailed, self-contained task prompts: files involved, expected
-        outcome, and how to verify (test/typecheck commands).
-      - Never launch two background tasks that touch the same files.
-      - After launching background tasks, keep planning or launch more
-        non-overlapping tasks — never poll or idle.
-      - Review results as they arrive; steer a running task by reusing its
-        task_id.
-    '';
+    '' + opencodeOrchestratorPrompt "fable-minion";
     # Adds finished/errored opencode sessions to the tmux-projects attention
     # queue, surfaced by the bar widget and popped with $mod+O.
     "opencode/plugins/attention.js".text = ''
