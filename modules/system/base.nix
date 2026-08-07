@@ -82,7 +82,7 @@
     tailscale = {
       enable = true;
       openFirewall = true;
-      extraSetFlags = [ "--accept-dns=true" ];
+      extraSetFlags = [ "--accept-dns=true" "--operator=jbellavista" ];
     };
   };
 

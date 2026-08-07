@@ -20,11 +20,7 @@
   console.keyMap = pkgs.lib.mkForce "dvorak";
 
   boot = {
-    loader.systemd-boot.enable = pkgs.lib.mkForce false;
-    lanzaboote = {
-      enable = true;
-      pkiBundle = "/var/lib/sbctl";
-    };
+    loader.systemd-boot.enable = true;
   };
 
   hardware = {
@@ -47,7 +43,7 @@
     __GLX_VENDOR_LIBRARY_NAME = "nvidia";
   };
 
-  environment.systemPackages = [ pkgs.sbctl ];
+  programs.wireshark.enable = true;
 
   users.mutableUsers = true;
   users.users.jbellavista = {
@@ -61,6 +57,7 @@
       "networkmanager"
       "video"
       "wheel"
+      "wireshark"
     ];
   };
 
