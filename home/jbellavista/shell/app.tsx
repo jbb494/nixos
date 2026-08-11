@@ -1126,16 +1126,31 @@ const toggleBluetoothDevice = (device: AstalBluetooth.Device) => {
   bluetoothConnectionError.set('');
 
   if (device.connected) {
-    device.disconnect_device((_, result) => {
-      try {
-        device.disconnect_device_finish(result);
-        finish();
-      } catch (error) {
-        fail('disconnect', error);
-      }
-    });
+    try {
+      // Some headphones immediately reconnect after a normal disconnect.
+      device.set_blocked(true);
+      finish();
+    } catch (error) {
+      fail('disconnect', error);
+    }
     return;
   }
+
+  const connect = () => {
+    try {
+      device.set_blocked(false);
+      device.connect_device((_, result) => {
+        try {
+          device.connect_device_finish(result);
+          finish();
+        } catch (error) {
+          fail('connect', error);
+        }
+      });
+    } catch (error) {
+      fail('connect', error);
+    }
+  };
 
   if (!device.paired) {
     GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
@@ -1152,14 +1167,7 @@ const toggleBluetoothDevice = (device: AstalBluetooth.Device) => {
     return;
   }
 
-  device.connect_device((_, result) => {
-    try {
-      device.connect_device_finish(result);
-      finish();
-    } catch (error) {
-      fail('connect', error);
-    }
-  });
+  connect();
 };
 
 const BluetoothDeviceRow = ({ device }: { device: AstalBluetooth.Device }) => (
@@ -1176,8 +1184,8 @@ const BluetoothDeviceRow = ({ device }: { device: AstalBluetooth.Device }) => (
           className="bluetooth-device-meta"
           halign={Gtk.Align.START}
           label={Variable.derive(
-            [bind(device, 'connected'), bind(device, 'paired'), bind(device, 'batteryPercentage'), bind(bluetoothBusyAddress)],
-            (connected, paired, batteryPercentage, busyAddress) => `${busyAddress === device.address ? (connected ? 'Disconnecting...' : paired ? 'Connecting...' : 'Pairing...') : connected ? 'Connected' : paired ? 'Paired' : 'Available'}${batteryPercentage >= 0 ? ` · ${Math.round(batteryPercentage * 100)}%` : ''}`,
+            [bind(device, 'connected'), bind(device, 'paired'), bind(device, 'blocked'), bind(device, 'batteryPercentage'), bind(bluetoothBusyAddress)],
+            (connected, paired, blocked, batteryPercentage, busyAddress) => `${busyAddress === device.address ? (connected ? 'Disconnecting...' : paired ? 'Connecting...' : 'Pairing...') : connected ? 'Connected' : blocked ? 'Disconnected · click to connect' : paired ? 'Paired' : 'Available'}${batteryPercentage >= 0 ? ` · ${Math.round(batteryPercentage * 100)}%` : ''}`,
           )()}
         />
       </box>
