@@ -946,6 +946,7 @@ in
   programs.ssh = {
     enable = true;
     enableDefaultConfig = false;
+    includes = [ "config.local" ];
     matchBlocks = {
       "homelab" = {
         hostname = "ubuntu-4gb-hel1-1";
