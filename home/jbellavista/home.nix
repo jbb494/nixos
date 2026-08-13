@@ -37,6 +37,11 @@ let
   opencodeEnv = { };
   opencodeEnvList = lib.mapAttrsToList (name: value: "${name}=${value}") opencodeEnv;
 
+  # Secret env vars (API tokens such as FIGMA_API_KEY) stay out of Git and the
+  # Nix store. Env-format file (KEY=value lines, chmod 600), created manually.
+  # Projected into both login shells and web services, mirroring opencodeEnv.
+  secretsEnvFile = "${config.home.homeDirectory}/.secrets/opencode.env";
+
   # Shared prompt for orchestrator agents; parameterized by the minion
   # subagent they delegate implementation to.
   opencodeOrchestratorPrompt = minionName: ''
@@ -705,6 +710,8 @@ let
           # Fixed web-auth password: tailscale is the real gate, this is a formality.
           "OPENCODE_SERVER_PASSWORD=rollnroll"
         ] ++ profileEnv ++ opencodeEnvList;
+        # Optional (leading "-"): secrets such as FIGMA_API_KEY, kept out of Git.
+        EnvironmentFile = "-${secretsEnvFile}";
       };
 
       Install.WantedBy = [ "default.target" ];
@@ -1104,6 +1111,11 @@ in
     enableCompletion = true;
     envExtra = ''
       setopt no_global_rcs
+      if [[ -r "${secretsEnvFile}" ]]; then
+        set -a
+        source "${secretsEnvFile}"
+        set +a
+      fi
     '';
     shellAliases = {
       ta = "tmux attach";
@@ -1372,6 +1384,11 @@ in
       mcp."linear-server" = {
         type = "remote";
         url = "https://mcp.linear.app/mcp";
+        oauth = { };
+      };
+      mcp."figma" = {
+        type = "remote";
+        url = "https://mcp.figma.com/mcp";
         oauth = { };
       };
     });
