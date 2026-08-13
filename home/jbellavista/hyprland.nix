@@ -1,6 +1,7 @@
-{ config, pkgs, ... }:
+{ config, lib, pkgs, ... }:
 
 let
+  inherit (lib.generators) mkLuaInline;
   terminal = "ghostty";
   tmuxProjectsBin = "/etc/profiles/per-user/jbellavista/bin/tmux-projects";
   wallpaper = "${pkgs.nixos-artwork.wallpapers.catppuccin-mocha.gnomeFilePath}";
@@ -62,10 +63,11 @@ let
   jbellavista-shell = pkgs.callPackage ../../packages/jbellavista-shell.nix {
     inherit rollnrollShellModule rollnrollRuntimePackages;
   };
-  monitorRules = [
-    # Select each monitor's highest resolution, then highest refresh rate.
-    ", highres, auto, 1"
-  ];
+  mod = "SUPER";
+  # Descriptors for hl.bind(keys, dispatcher[, flags]) calls in the generated
+  # Lua config. `dispatcher` is a raw Lua expression string.
+  mkBind = keys: dispatcher: { _args = [ keys (mkLuaInline dispatcher) ]; };
+  mkBindFlags = keys: dispatcher: flags: { _args = [ keys (mkLuaInline dispatcher) flags ]; };
 in
 {
   home.packages = [ jbellavista-shell pkgs.hyprlock pkgs.hyprpaper ];
@@ -130,56 +132,57 @@ in
   wayland.windowManager.hyprland = {
     enable = true;
     systemd.enable = false;
+    # Hyprland 0.55+ deprecated hyprlang configs in favor of Lua.
+    configType = "lua";
     settings = {
-      "$mod" = "SUPER";
+      config = {
+        ecosystem = {
+          no_update_news = true;
+        };
 
-      ecosystem = {
-        no_update_news = true;
+        misc = {
+          disable_hyprland_logo = true;
+          disable_splash_rendering = true;
+          force_default_wallpaper = 0;
+        };
+
+        general = {
+          gaps_in = 4;
+          gaps_out = 8;
+          border_size = 2;
+          layout = "dwindle";
+        };
+
+        decoration = {
+          rounding = 8;
+          blur.enabled = false;
+        };
+
+        animations.enabled = false;
+
+        input = {
+          kb_layout = "es,us";
+          kb_variant = ",";
+          kb_options = "grp:alt_shift_toggle";
+          follow_mouse = 0;
+          touchpad.natural_scroll = true;
+          # Resolve binds against the active keyboard's layout, not the first one.
+          resolve_binds_by_sym = true;
+        };
       };
 
-      monitor = monitorRules;
-
-      # jbellavista-shell and mako run as systemd user services (see below and
-      # home.nix) so nixos-rebuild switch restarts them when they change.
-      exec-once = [
-        "playerctld daemon"
-        "${pkgs.hyprpaper}/bin/hyprpaper"
-      ];
-
-      misc = {
-        disable_hyprland_logo = true;
-        disable_splash_rendering = true;
-        force_default_wallpaper = 0;
+      # Select each monitor's highest resolution, then highest refresh rate.
+      monitor = {
+        output = "";
+        mode = "highres";
+        position = "auto";
+        scale = 1;
       };
 
       env = [
-        "NIXOS_OZONE_WL,1"
-        "QT_QPA_PLATFORM,wayland;xcb"
+        { _args = [ "NIXOS_OZONE_WL" "1" ]; }
+        { _args = [ "QT_QPA_PLATFORM" "wayland;xcb" ]; }
       ];
-
-      general = {
-        gaps_in = 4;
-        gaps_out = 8;
-        border_size = 2;
-        layout = "dwindle";
-      };
-
-      decoration = {
-        rounding = 8;
-        blur.enabled = false;
-      };
-
-      animations.enabled = false;
-
-      input = {
-        kb_layout = "es,us";
-        kb_variant = ",";
-        kb_options = "grp:alt_shift_toggle";
-        follow_mouse = 0;
-        touchpad.natural_scroll = true;
-        # Resolve binds against the active keyboard's layout, not the first one.
-        resolve_binds_by_sym = true;
-      };
 
       device = [
         {
@@ -214,95 +217,85 @@ in
         }
       ];
 
+      # jbellavista-shell and mako run as systemd user services (see above and
+      # home.nix) so nixos-rebuild switch restarts them when they change.
+      on = {
+        _args = [
+          "hyprland.start"
+          (mkLuaInline ''
+            function()
+              hl.exec_cmd("playerctld daemon")
+              hl.exec_cmd("${pkgs.hyprpaper}/bin/hyprpaper")
+            end'')
+        ];
+      };
+
       bind = [
-        "$mod, Return, exec, ${terminal}"
-        "$mod, D, exec, rofi -show drun"
-        "$mod SHIFT, Q, killactive"
-        "$mod, mouse:274, killactive"
-        "$mod SHIFT, Space, togglefloating"
-        "$mod, E, exec, ${lockAndSuspend}/bin/lock-and-suspend"
-        "$mod, period, exit"
-        "$mod, F12, exec, hyprctl switchxkblayout all next"
-        "$mod, O, exec, ${tmuxProjectsBin} oc-queue pop"
-        "$mod, H, movefocus, l"
-        "$mod, J, movefocus, d"
-        "$mod, K, movefocus, u"
-        "$mod, L, movefocus, r"
-        "$mod SHIFT, H, movewindow, l"
-        "$mod SHIFT, J, movewindow, d"
-        "$mod SHIFT, K, movewindow, u"
-        "$mod SHIFT, L, movewindow, r"
+        (mkBind "${mod} + Return" ''hl.dsp.exec_cmd("${terminal}")'')
+        (mkBind "${mod} + D" ''hl.dsp.exec_cmd("rofi -show drun")'')
+        (mkBind "${mod} + SHIFT + Q" "hl.dsp.window.close()")
+        (mkBind "${mod} + mouse:274" "hl.dsp.window.close()")
+        (mkBind "${mod} + SHIFT + Space" ''hl.dsp.window.float({ action = "toggle" })'')
+        (mkBind "${mod} + E" ''hl.dsp.exec_cmd("${lockAndSuspend}/bin/lock-and-suspend")'')
+        (mkBind "${mod} + period" "hl.dsp.exit()")
+        (mkBind "${mod} + F12" ''hl.dsp.exec_cmd("hyprctl switchxkblayout all next")'')
+        (mkBind "${mod} + O" ''hl.dsp.exec_cmd("${tmuxProjectsBin} oc-queue pop")'')
+        (mkBind "${mod} + H" ''hl.dsp.focus({ direction = "left" })'')
+        (mkBind "${mod} + J" ''hl.dsp.focus({ direction = "down" })'')
+        (mkBind "${mod} + K" ''hl.dsp.focus({ direction = "up" })'')
+        (mkBind "${mod} + L" ''hl.dsp.focus({ direction = "right" })'')
+        (mkBind "${mod} + SHIFT + H" ''hl.dsp.window.move({ direction = "left" })'')
+        (mkBind "${mod} + SHIFT + J" ''hl.dsp.window.move({ direction = "down" })'')
+        (mkBind "${mod} + SHIFT + K" ''hl.dsp.window.move({ direction = "up" })'')
+        (mkBind "${mod} + SHIFT + L" ''hl.dsp.window.move({ direction = "right" })'')
 
-        "$mod CTRL, H, movecurrentworkspacetomonitor, -1"
-        "$mod CTRL, L, movecurrentworkspacetomonitor, +1"
+        (mkBind "${mod} + CTRL + H" ''hl.dsp.workspace.move({ monitor = "-1" })'')
+        (mkBind "${mod} + CTRL + L" ''hl.dsp.workspace.move({ monitor = "+1" })'')
+      ]
+      # Top-row digits by scancode: layout-independent on both keyboards.
+      # code:10 .. code:19 map to workspaces 1 .. 10.
+      ++ lib.concatMap
+        (i: [
+          (mkBind "${mod} + code:${toString (i + 9)}" "hl.dsp.focus({ workspace = ${toString i} })")
+          (mkBind "${mod} + SHIFT + code:${toString (i + 9)}" "hl.dsp.window.move({ workspace = ${toString i} })")
+        ])
+        (lib.range 1 10)
+      ++ [
+        (mkBind "XF86AudioRaiseVolume" ''hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+")'')
+        (mkBind "XF86AudioLowerVolume" ''hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-")'')
+        (mkBind "XF86AudioMute" ''hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle")'')
+        (mkBind "XF86MonBrightnessUp" ''hl.dsp.exec_cmd("brightnessctl set +10%")'')
+        (mkBind "XF86MonBrightnessDown" ''hl.dsp.exec_cmd("brightnessctl set 10%-")'')
+        (mkBind "XF86AudioPlay" ''hl.dsp.exec_cmd("playerctl -p playerctld play-pause")'')
+        (mkBind "XF86AudioPause" ''hl.dsp.exec_cmd("playerctl -p playerctld play-pause")'')
+        (mkBind "XF86AudioNext" ''hl.dsp.exec_cmd("playerctl -p playerctld next")'')
+        (mkBind "XF86AudioPrev" ''hl.dsp.exec_cmd("playerctl -p playerctld previous")'')
+        (mkBind "XF86AudioStop" ''hl.dsp.exec_cmd("playerctl -p playerctld stop")'')
 
-        # Top-row digits by scancode: layout-independent on both keyboards.
-        "$mod, code:10, workspace, 1"
-        "$mod, code:11, workspace, 2"
-        "$mod, code:12, workspace, 3"
-        "$mod, code:13, workspace, 4"
-        "$mod, code:14, workspace, 5"
-        "$mod, code:15, workspace, 6"
-        "$mod, code:16, workspace, 7"
-        "$mod, code:17, workspace, 8"
-        "$mod, code:18, workspace, 9"
-        "$mod, code:19, workspace, 10"
-        "$mod SHIFT, code:10, movetoworkspace, 1"
-        "$mod SHIFT, code:11, movetoworkspace, 2"
-        "$mod SHIFT, code:12, movetoworkspace, 3"
-        "$mod SHIFT, code:13, movetoworkspace, 4"
-        "$mod SHIFT, code:14, movetoworkspace, 5"
-        "$mod SHIFT, code:15, movetoworkspace, 6"
-        "$mod SHIFT, code:16, movetoworkspace, 7"
-        "$mod SHIFT, code:17, movetoworkspace, 8"
-        "$mod SHIFT, code:18, movetoworkspace, 9"
-        "$mod SHIFT, code:19, movetoworkspace, 10"
+        # Run layout changes on F-key release; the scripts then wait briefly so
+        # rebuilding XKB cannot swallow the release of Super.
+        (mkBindFlags "${mod} + code:67" ''hl.dsp.exec_cmd("${keyboardNormalMode}/bin/keyboard-normal-mode")'' { release = true; })
+        (mkBindFlags "${mod} + code:68" ''hl.dsp.exec_cmd("${keyboardGamingMode}/bin/keyboard-gaming-mode")'' { release = true; })
 
-        ", XF86AudioRaiseVolume, exec, wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+"
-        ", XF86AudioLowerVolume, exec, wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
-        ", XF86AudioMute, exec, wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
-        ", XF86MonBrightnessUp, exec, brightnessctl set +10%"
-        ", XF86MonBrightnessDown, exec, brightnessctl set 10%-"
-        ", XF86AudioPlay, exec, playerctl -p playerctld play-pause"
-        ", XF86AudioPause, exec, playerctl -p playerctld play-pause"
-        ", XF86AudioNext, exec, playerctl -p playerctld next"
-        ", XF86AudioPrev, exec, playerctl -p playerctld previous"
-        ", XF86AudioStop, exec, playerctl -p playerctld stop"
+        (mkBindFlags "${mod} + SHIFT + right" "hl.dsp.window.resize({ x = 30, y = 0, relative = true })" { repeating = true; })
+        (mkBindFlags "${mod} + SHIFT + left" "hl.dsp.window.resize({ x = -30, y = 0, relative = true })" { repeating = true; })
+        (mkBindFlags "${mod} + SHIFT + up" "hl.dsp.window.resize({ x = 0, y = -30, relative = true })" { repeating = true; })
+        (mkBindFlags "${mod} + SHIFT + down" "hl.dsp.window.resize({ x = 0, y = 30, relative = true })" { repeating = true; })
+
+        (mkBindFlags "switch:on:Lid Switch" ''hl.dsp.exec_cmd("${lockAndSuspend}/bin/lock-and-suspend")'' { locked = true; })
+
+        (mkBindFlags "${mod} + mouse:272" "hl.dsp.window.drag()" { mouse = true; })
+        (mkBindFlags "${mod} + mouse:273" "hl.dsp.window.resize()" { mouse = true; })
       ];
-
-      # Run layout changes on F-key release; the scripts then wait briefly so
-      # rebuilding XKB cannot swallow the release of Super.
-      bindr = [
-        "$mod, code:67, exec, ${keyboardNormalMode}/bin/keyboard-normal-mode"
-        "$mod, code:68, exec, ${keyboardGamingMode}/bin/keyboard-gaming-mode"
-      ];
-
-      binde = [
-        "$mod SHIFT, right, resizeactive, 30 0"
-        "$mod SHIFT, left, resizeactive, -30 0"
-        "$mod SHIFT, up, resizeactive, 0 -30"
-        "$mod SHIFT, down, resizeactive, 0 30"
-      ];
-
-      bindl = [
-        ", switch:on:Lid Switch, exec, ${lockAndSuspend}/bin/lock-and-suspend"
-      ];
-
-      bindm = [
-        "$mod, mouse:272, movewindow"
-        "$mod, mouse:273, resizewindow"
-      ];
-
     };
-    extraConfig = ''
-      submap = resize
-      binde = , h, resizeactive, -30 0
-      binde = , j, resizeactive, 0 30
-      binde = , k, resizeactive, 0 -30
-      binde = , l, resizeactive, 30 0
-      bind = , escape, submap, reset
-      bind = , return, submap, reset
-      submap = reset
-    '';
+
+    submaps.resize.settings.bind = [
+      (mkBindFlags "h" "hl.dsp.window.resize({ x = -30, y = 0, relative = true })" { repeating = true; })
+      (mkBindFlags "j" "hl.dsp.window.resize({ x = 0, y = 30, relative = true })" { repeating = true; })
+      (mkBindFlags "k" "hl.dsp.window.resize({ x = 0, y = -30, relative = true })" { repeating = true; })
+      (mkBindFlags "l" "hl.dsp.window.resize({ x = 30, y = 0, relative = true })" { repeating = true; })
+      (mkBind "escape" ''hl.dsp.submap("reset")'')
+      (mkBind "return" ''hl.dsp.submap("reset")'')
+    ];
   };
 }
