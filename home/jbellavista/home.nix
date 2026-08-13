@@ -1,7 +1,6 @@
 { inputs
 , config
 , lib
-, masterPkgs
 , opencodeLinearMcp
 , opencodePersonalProfile
 , pkgs
@@ -11,6 +10,11 @@
 let
   rollnrollEnabled = !(inputs.rollnroll-devtools ? isStub);
   tmuxProjectsBin = "/etc/profiles/per-user/jbellavista/bin/tmux-projects";
+  opencode2 = inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.opencode2;
+  opencode = pkgs.runCommand "opencode" { } ''
+    mkdir -p $out/bin
+    ln -s ${opencode2}/bin/opencode2 $out/bin/opencode
+  '';
   opencodeDefaultProject = "${config.home.homeDirectory}/personal/nixos";
   opencodeProfileDirs = profile: {
     dataHome = "${config.home.homeDirectory}/.local/share/opencode-profiles/${profile}/data";
@@ -28,14 +32,9 @@ let
     ];
   personalOpencodeProfileDirs = opencodeProfileDirs "personal";
 
-  # Single source of truth for opencode feature flags. Projected into both
-  # login-shell env (home.sessionVariables -> TUI instances) and the web
-  # service units (Environment=), which do not inherit login-shell env.
-  opencodeEnv = {
-    # Enables `background: true` on the task tool so an orchestrator agent
-    # can spawn subagents asynchronously and keep working (opencode >= 1.17).
-    OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS = "true";
-  };
+  # Single source of truth for future opencode feature flags. Projected into
+  # both login shells and web services, which do not inherit login-shell env.
+  opencodeEnv = { };
   opencodeEnvList = lib.mapAttrsToList (name: value: "${name}=${value}") opencodeEnv;
 
   # Shared prompt for orchestrator agents; parameterized by the minion
@@ -698,7 +697,7 @@ let
       Service = {
         Type = "simple";
         WorkingDirectory = opencodeDefaultProject;
-        ExecStart = "${masterPkgs.opencode}/bin/opencode serve --hostname 127.0.0.1 --port ${toString port}";
+        ExecStart = "${opencode2}/bin/opencode2 serve --hostname 127.0.0.1 --port ${toString port}";
         Restart = "on-failure";
         RestartSec = 5;
         Environment = [
@@ -786,7 +785,8 @@ in
       nautilus
       nodejs_22
       obs-studio
-      masterPkgs.opencode
+      opencode2
+      opencode
       pavucontrol
       playerctl
       pnpm
@@ -1053,6 +1053,42 @@ in
     fi
   '';
 
+  # The personal profile does not override XDG_CONFIG_HOME, so both profiles
+  # share this writable CLI preferences file. It must not be a Nix store link.
+  home.activation.registerOpencodeAttentionPlugin = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    cli_file="${config.xdg.configHome}/opencode/cli.json"
+    plugin_path="${config.xdg.configHome}/opencode/attention-tui.js"
+    mkdir -p "$(dirname "$cli_file")"
+
+    if [ ! -e "$cli_file" ]; then
+      tmp="$(${pkgs.coreutils}/bin/mktemp "$cli_file.tmp.XXXXXX")"
+      if ${pkgs.jq}/bin/jq -n \
+        --arg package "$plugin_path" \
+        --arg tmuxProjects "${tmuxProjectsBin}" \
+        '{plugins: [{package: $package, options: {tmuxProjects: $tmuxProjects}}]}' > "$tmp"; then
+        mv "$tmp" "$cli_file"
+      else
+        rm -f "$tmp"
+        printf 'warning: could not initialize %s\n' "$cli_file" >&2
+      fi
+    elif ! ${pkgs.jq}/bin/jq empty "$cli_file" >/dev/null 2>&1; then
+      printf 'warning: leaving malformed OpenCode CLI config unchanged: %s\n' "$cli_file" >&2
+    elif ! ${pkgs.jq}/bin/jq -e --arg package "$plugin_path" \
+      '(.plugins // []) | any(.package == $package)' "$cli_file" >/dev/null; then
+      tmp="$(${pkgs.coreutils}/bin/mktemp "$cli_file.tmp.XXXXXX")"
+      if ${pkgs.jq}/bin/jq \
+        --arg package "$plugin_path" \
+        --arg tmuxProjects "${tmuxProjectsBin}" \
+        '.plugins = ((.plugins // []) + [{package: $package, options: {tmuxProjects: $tmuxProjects}}])' \
+        "$cli_file" > "$tmp"; then
+        mv "$tmp" "$cli_file"
+      else
+        rm -f "$tmp"
+        printf 'warning: could not update OpenCode CLI config: %s\n' "$cli_file" >&2
+      fi
+    fi
+  '';
+
   programs.zoxide = {
     enable = true;
     enableZshIntegration = true;
@@ -1305,7 +1341,7 @@ in
       keybind = ctrl+enter=unbind
     '';
     "nvim".source = inputs.nvim-config;
-    "opencode/config.json".text = builtins.toJSON ({
+    "opencode/opencode.json".text = builtins.toJSON ({
       "$schema" = "https://opencode.ai/config.json";
       share = "disabled";
       autoupdate = false;
@@ -1374,95 +1410,114 @@ in
       ---
 
     '' + opencodeOrchestratorPrompt "fable-minion";
-    # Adds finished/errored opencode sessions to the tmux-projects attention
-    # queue, surfaced by the bar widget and popped with $mod+O.
-    "opencode/plugins/attention.js".text = ''
-      const TMUX_PROJECTS = "${tmuxProjectsBin}";
+    # Adds completed/interrupted/failed top-level sessions to the tmux-projects
+    # attention queue, surfaced by the bar widget and popped with $mod+O.
+    "opencode/attention-tui.js".text = ''
+      import { execFile } from "node:child_process"
 
-      export const AttentionQueue = async ({ client, $ }) => {
-        if (!process.env.TMUX) return {};
+      const DEFAULT_TMUX_PROJECTS = "${tmuxProjectsBin}"
 
-        const tmuxPane = process.env.TMUX_PANE;
-        if (!tmuxPane) return {};
+      function execute(file, args) {
+        return new Promise((resolve, reject) => {
+          execFile(file, args, { encoding: "utf8" }, (error, stdout) => {
+            if (error) reject(error)
+            else resolve(stdout)
+          })
+        })
+      }
 
-        const tmuxContext = async () => {
-          try {
-            const info = (await $`tmux display-message -p -t ''${tmuxPane} '#{window_id} #S'`.text()).trim();
-            const spaceIndex = info.indexOf(" ");
-            if (spaceIndex > 0) {
-              return {
-                window: info.slice(0, spaceIndex),
-                session: info.slice(spaceIndex + 1),
-              };
+      export default {
+        id: "attention-queue",
+        setup(context) {
+          if (!process.env.TMUX || !process.env.TMUX_PANE) return
+
+          const tmuxPane = process.env.TMUX_PANE
+          const tmuxProjects =
+            typeof context.options.tmuxProjects === "string" ? context.options.tmuxProjects : DEFAULT_TMUX_PROJECTS
+
+          const tmuxContext = async () => {
+            try {
+              const info = (await execute("tmux", ["display-message", "-p", "-t", tmuxPane, "#{window_id} #S"])).trim()
+              const spaceIndex = info.indexOf(" ")
+              if (spaceIndex > 0) return { window: info.slice(0, spaceIndex), session: info.slice(spaceIndex + 1) }
+            } catch {}
+            return undefined
+          }
+
+          const enqueue = async (sessionID, status, title) => {
+            let session = context.data.session.get(sessionID)
+            if (!session) {
+              try {
+                await context.data.session.sync(sessionID)
+                session = context.data.session.get(sessionID)
+              } catch {}
             }
-          } catch {}
-          return null;
-        };
+            if (session?.parentID) return
 
-        const enqueue = async (sessionID, status) => {
-          let title = sessionID;
-          try {
-            const session = await client.session.get({ path: { id: sessionID } });
-            if (session.data?.parentID) return; // ignore subagent sessions
-            title = session.data?.title || sessionID;
-          } catch {}
+            const tmux = await tmuxContext()
+            if (!tmux?.session) return
 
-          const tmux = await tmuxContext();
-          if (!tmux?.session) return;
+            try {
+              await execute(tmuxProjects, [
+                "oc-queue",
+                "add",
+                tmux.session,
+                tmux.window,
+                status,
+                title || session?.title || sessionID,
+              ])
+            } catch {}
+          }
 
-          try {
-            await $`''${TMUX_PROJECTS} oc-queue add ''${tmux.session} ''${tmux.window} ''${status} ''${title}`.quiet();
-          } catch {}
-        };
-
-        return {
-          event: async ({ event }) => {
-            if (event.type === "session.idle" && event.properties?.sessionID) {
-              await enqueue(event.properties.sessionID, "done");
+          const pending = new Map()
+          const ended = async (sessionID, status) => {
+            let session = context.data.session.get(sessionID)
+            if (!session) {
+              try {
+                await context.data.session.sync(sessionID)
+                session = context.data.session.get(sessionID)
+              } catch {}
             }
-            if (event.type === "session.error" && event.properties?.sessionID) {
-              await enqueue(event.properties.sessionID, "error");
+            if (session?.parentID) return
+            if (session?.title) {
+              await enqueue(sessionID, status, session.title)
+              return
             }
-            // Disabled: permission.asked fires even under --auto (the TUI
-            // auto-replies client-side), producing stale notifications.
-            // if (event.type === "permission.asked" && event.properties?.sessionID) {
-            //   await enqueue(event.properties.sessionID, "permission");
-            // }
-          },
-        };
-      };
-    '';
-    "opencode/tui.json".text = ''
-      {
-        "$schema": "https://opencode.ai/tui.json",
-        "keybinds": {
-          "leader": "ctrl+x",
-          "app_exit": "ctrl+c,<leader>q",
-          "editor_open": "<leader>e",
-          "theme_list": "<leader>t",
-          "session_new": "<leader>n",
-          "session_list": "<leader>l",
-          "session_share": "<leader>s",
-          "session_unshare": "<leader>u",
-          "session_interrupt": "escape",
-          "session_compact": "<leader>c",
-          "messages_page_up": "pageup",
-          "messages_page_down": "pagedown",
-          "messages_half_page_up": "ctrl+u",
-          "messages_half_page_down": "ctrl+d",
-          "messages_first": "ctrl+g",
-          "messages_last": "ctrl+alt+g",
-          "messages_copy": "<leader>y",
-          "messages_undo": "<leader>u",
-          "messages_redo": "<leader>r",
-          "model_list": "<leader>m",
-          "input_clear": "ctrl+c",
-          "input_paste": "ctrl+v",
-          "input_submit": "return",
-          "input_newline": "shift+return,ctrl+return,alt+return,ctrl+j",
-          "history_previous": "ctrl+up",
-          "history_next": "ctrl+down"
-        }
+
+            const previous = pending.get(sessionID)
+            if (previous) clearTimeout(previous.timer)
+            const timer = setTimeout(() => {
+              pending.delete(sessionID)
+              void enqueue(sessionID, status)
+            }, 3000)
+            pending.set(sessionID, { status, timer })
+          }
+
+          const dispose = [
+            context.data.on("session.execution.succeeded", (event) => {
+              void ended(event.data.sessionID, "done")
+            }),
+            context.data.on("session.execution.interrupted", (event) => {
+              void ended(event.data.sessionID, "done")
+            }),
+            context.data.on("session.execution.failed", (event) => {
+              void ended(event.data.sessionID, "error")
+            }),
+            context.data.on("session.renamed", (event) => {
+              const item = pending.get(event.data.sessionID)
+              if (!item) return
+              clearTimeout(item.timer)
+              pending.delete(event.data.sessionID)
+              void enqueue(event.data.sessionID, item.status, event.data.title)
+            }),
+          ]
+
+          return () => {
+            dispose.reverse().forEach((cleanup) => cleanup())
+            for (const item of pending.values()) clearTimeout(item.timer)
+            pending.clear()
+          }
+        },
       }
     '';
   };

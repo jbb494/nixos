@@ -94,6 +94,7 @@
         jbellavista-shell = pkgs.callPackage ./packages/jbellavista-shell.nix {
           rollnrollShellModule = inputs.rollnroll-devtools.shellModules.ags.rollnroll or null;
         };
+        opencode2 = pkgs.callPackage ./packages/opencode2.nix { };
         install-evo15 = pkgs.callPackage ./apps/install-evo15.nix {
           diskoPackage = disko.packages.${system}.disko;
           nixosInstallTools = pkgs.nixos-install-tools;
