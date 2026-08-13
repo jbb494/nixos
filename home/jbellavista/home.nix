@@ -1386,10 +1386,15 @@ in
         url = "https://mcp.linear.app/mcp";
         oauth = { };
       };
+      # Community Figma MCP (figma-developer-mcp): reads FIGMA_API_KEY from the
+      # secrets env file so it works regardless of how the daemon was spawned.
       mcp."figma" = {
-        type = "remote";
-        url = "https://mcp.figma.com/mcp";
-        oauth = { };
+        type = "local";
+        command = [
+          "/run/current-system/sw/bin/zsh"
+          "-c"
+          "[ -r \"\${HOME}/.secrets/opencode.env\" ] && { set -a; source \"\${HOME}/.secrets/opencode.env\"; set +a; }; export PATH=\"/etc/profiles/per-user/jbellavista/bin:$PATH\"; exec npx -y figma-developer-mcp --stdio"
+        ];
       };
     });
     # Orchestrator + minion pattern: an expensive planning model (fable)
