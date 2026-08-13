@@ -11,6 +11,7 @@ import NM from 'gi://NM?version=1.0';
 import { Gio, GLib, Variable, bind, execAsync, monitorFile, readFile } from 'astal';
 import style from './style.css';
 import { RollnrollButton, RollnrollDropdown, closeRollnroll, openRollnrollMonitor, rollnrollCss } from './external/rollnroll';
+import { EveButton, EveDropdown, closeEve, eveCss, openEvePosition } from './external/eve';
 
 const battery = AstalBattery.get_default();
 const bluetooth = AstalBluetooth.get_default() as AstalBluetooth.Bluetooth;
@@ -406,6 +407,7 @@ const dropdownRightForWidget = (widget: Gtk.Widget) => {
 };
 
 const toggleAudio = (monitor: number, widget: Gtk.Widget) => {
+  closeEve();
   closeRollnroll();
   openOpencodePosition.set(null);
   openBluetoothPosition.set(null);
@@ -420,6 +422,7 @@ const toggleAudio = (monitor: number, widget: Gtk.Widget) => {
 };
 
 const toggleBluetooth = (monitor: number, widget: Gtk.Widget) => {
+  closeEve();
   closeRollnroll();
   openOpencodePosition.set(null);
   openAudioPosition.set(null);
@@ -434,6 +437,7 @@ const toggleBluetooth = (monitor: number, widget: Gtk.Widget) => {
 };
 
 const toggleMedia = (monitor: number, widget: Gtk.Widget) => {
+  closeEve();
   closeRollnroll();
   openOpencodePosition.set(null);
   openAudioPosition.set(null);
@@ -448,6 +452,7 @@ const toggleMedia = (monitor: number, widget: Gtk.Widget) => {
 };
 
 const toggleNetwork = (monitor: number, widget: Gtk.Widget) => {
+  closeEve();
   closeRollnroll();
   openOpencodePosition.set(null);
   openAudioPosition.set(null);
@@ -462,6 +467,7 @@ const toggleNetwork = (monitor: number, widget: Gtk.Widget) => {
 };
 
 const toggleOpencode = (monitor: number, widget: Gtk.Widget) => {
+  closeEve();
   closeRollnroll();
   openAudioPosition.set(null);
   openBluetoothPosition.set(null);
@@ -476,6 +482,7 @@ const toggleOpencode = (monitor: number, widget: Gtk.Widget) => {
 };
 
 const closeDropdowns = () => {
+  closeEve();
   openOpencodePosition.set(null);
   openAudioPosition.set(null);
   openBluetoothPosition.set(null);
@@ -485,6 +492,7 @@ const closeDropdowns = () => {
 };
 
 const closeLocalDropdowns = () => {
+  closeEve();
   openOpencodePosition.set(null);
   openAudioPosition.set(null);
   openBluetoothPosition.set(null);
@@ -635,11 +643,12 @@ const ClickCatcher = (monitor: number) => (
     }}
     setup={(self) => {
       const update = () => {
-        setLayerWindowVisible(self, openAudioPosition.get()?.monitor === monitor || openBluetoothPosition.get()?.monitor === monitor || openMediaPosition.get()?.monitor === monitor || openNetworkPosition.get()?.monitor === monitor || openOpencodePosition.get()?.monitor === monitor || openRollnrollMonitorValue() === monitor);
+        setLayerWindowVisible(self, openAudioPosition.get()?.monitor === monitor || openBluetoothPosition.get()?.monitor === monitor || openEvePosition.get()?.monitor === monitor || openMediaPosition.get()?.monitor === monitor || openNetworkPosition.get()?.monitor === monitor || openOpencodePosition.get()?.monitor === monitor || openRollnrollMonitorValue() === monitor);
       };
 
       openAudioPosition.subscribe(update);
       openBluetoothPosition.subscribe(update);
+      openEvePosition.subscribe(update);
       openMediaPosition.subscribe(update);
       openNetworkPosition.subscribe(update);
       openOpencodePosition.subscribe(update);
@@ -1597,6 +1606,7 @@ const Bar = (monitor: number) => (
         endWidget={
           <box className="section right" halign={Gtk.Align.END}>
             <OpencodeButton monitor={monitor} />
+            <EveButton monitor={monitor} getMarginRight={dropdownRightForWidget} closeOthers={closeDropdowns} />
             <RollnrollButton monitor={monitor} getMarginRight={dropdownRightForWidget} closeOthers={closeLocalDropdowns} />
             <GroupGap />
             <MediaButton monitor={monitor} />
@@ -1652,6 +1662,7 @@ const monitorWindowNames = (monitor: number) => [
   `jbellavista-shell-bar-${monitor}`,
   `dropdown-click-catcher-${monitor}`,
   `rollnroll-dropdown-${monitor}`,
+  `eve-dropdown-${monitor}`,
   `bluetooth-dropdown-${monitor}`,
   `media-dropdown-${monitor}`,
   `network-dropdown-${monitor}`,
@@ -1667,6 +1678,7 @@ const createMonitorWindows = (monitor: number) => {
   Bar(monitor);
   ClickCatcher(monitor);
   RollnrollDropdown(monitor, dropdownMarginTop);
+  EveDropdown(monitor, dropdownMarginTop);
   BluetoothDropdown(monitor);
   MediaDropdown(monitor);
   NetworkDropdown(monitor);
@@ -1700,7 +1712,7 @@ const syncMonitorWindows = () => {
 App.start({
   instanceName: 'jbellavista-shell',
   main: () => {
-    App.apply_css(`${style}\n${rollnrollCss}`, true);
+    App.apply_css(`${style}\n${rollnrollCss}\n${eveCss}`, true);
 
     const display = Gdk.Display.get_default();
 

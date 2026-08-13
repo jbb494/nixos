@@ -1,5 +1,6 @@
 { config
 , inputs
+, lib
 , masterPkgs
 , pkgs
 , ...
@@ -13,6 +14,7 @@
     ../../modules/system/workstation.nix
     ../../modules/desktop/hyprland.nix
     ../../modules/keyboard/ergodox-dvorak.nix
+    inputs.eve-protocol-observatory.nixosModules.default
   ];
 
   networking.hostName = "desktop";
@@ -73,4 +75,9 @@
   };
 
   system.stateVersion = "25.11";
+} // lib.optionalAttrs (inputs.eve-protocol-observatory.available or false) {
+  services.eve-protocol-observatory = {
+    enable = true;
+    user = "jbellavista";
+  };
 }

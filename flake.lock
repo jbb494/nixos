@@ -36,6 +36,22 @@
         "type": "github"
       }
     },
+    "eve-protocol-observatory": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "path": "./stubs/eve-protocol-observatory",
+        "type": "path"
+      },
+      "original": {
+        "path": "./stubs/eve-protocol-observatory",
+        "type": "path"
+      },
+      "parent": []
+    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -180,6 +196,7 @@
     "root": {
       "inputs": {
         "disko": "disko",
+        "eve-protocol-observatory": "eve-protocol-observatory",
         "home-manager": "home-manager",
         "lanzaboote": "lanzaboote",
         "nixpkgs": "nixpkgs",

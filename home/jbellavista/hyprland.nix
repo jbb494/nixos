@@ -1,4 +1,4 @@
-{ config, lib, pkgs, ... }:
+{ config, inputs, lib, pkgs, ... }:
 
 let
   inherit (lib.generators) mkLuaInline;
@@ -60,8 +60,11 @@ let
   };
   rollnrollShellModule = config.programs.rollnroll-devtools.ags.shellModule or null;
   rollnrollRuntimePackages = config.programs.rollnroll-devtools.ags.runtimePackages or [ ];
+  eveAvailable = inputs.eve-protocol-observatory.available or false;
+  eveRuntimePackages = if eveAvailable then inputs.eve-protocol-observatory.ags.packages.${pkgs.system} else [ ];
+  eveShellModule = if eveAvailable then inputs.eve-protocol-observatory.ags.shellModule.${pkgs.system} else null;
   jbellavista-shell = pkgs.callPackage ../../packages/jbellavista-shell.nix {
-    inherit rollnrollShellModule rollnrollRuntimePackages;
+    inherit eveRuntimePackages eveShellModule rollnrollShellModule rollnrollRuntimePackages;
   };
   mod = "SUPER";
   # Descriptors for hl.bind(keys, dispatcher[, flags]) calls in the generated

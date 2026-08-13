@@ -20,6 +20,11 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    eve-protocol-observatory = {
+      url = "path:./stubs/eve-protocol-observatory";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     nvim-config = {
       url = "github:jbb494/nvim";
       flake = false;
@@ -40,6 +45,9 @@
         config.allowUnfree = true;
       };
       xkeyboardConfigErgodox = pkgs.callPackage ./packages/xkeyboard-config-ergodox.nix { };
+      eveAvailable = inputs.eve-protocol-observatory.available or false;
+      eveRuntimePackages = if eveAvailable then inputs.eve-protocol-observatory.ags.packages.${system} else [ ];
+      eveShellModule = if eveAvailable then inputs.eve-protocol-observatory.ags.shellModule.${system} else null;
     in
     {
       nixosConfigurations.evo15 = nixpkgs.lib.nixosSystem {
@@ -93,6 +101,7 @@
         inherit xkeyboardConfigErgodox;
         jbellavista-shell = pkgs.callPackage ./packages/jbellavista-shell.nix {
           rollnrollShellModule = inputs.rollnroll-devtools.shellModules.ags.rollnroll or null;
+          inherit eveRuntimePackages eveShellModule;
         };
         opencode2 = pkgs.callPackage ./packages/opencode2.nix { };
         install-evo15 = pkgs.callPackage ./apps/install-evo15.nix {
