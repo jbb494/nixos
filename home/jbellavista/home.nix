@@ -1393,7 +1393,7 @@ in
         command = [
           "/run/current-system/sw/bin/zsh"
           "-c"
-          "[ -r \"\${HOME}/.secrets/opencode.env\" ] && { set -a; source \"\${HOME}/.secrets/opencode.env\"; set +a; }; export PATH=\"/etc/profiles/per-user/jbellavista/bin:$PATH\"; exec npx -y figma-developer-mcp --stdio"
+          "[ -r \"\${HOME}/.secrets/opencode.env\" ] && { set -a; source \"\${HOME}/.secrets/opencode.env\"; set +a; }; export PATH=\"/etc/profiles/per-user/jbellavista/bin:$PATH\"; exec npx -y figma-developer-mcp@0.13.2 --stdio"
         ];
       };
     });
