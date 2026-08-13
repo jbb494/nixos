@@ -569,7 +569,7 @@ const Workspaces = ({ monitor }: { monitor: number }) => {
           .filter(({ workspace, clientCount }) => clientCount > 0 || workspace.id === activeWorkspace?.id)
           .sort((a, b) => a.workspace.id - b.workspace.id)
           .map(({ workspace, clientCount }) => (
-            <button className={workspaceButtonClass(workspace, activeWorkspace?.id, clientCount)} onClick={() => hyprland.dispatch('workspace', String(workspace.id))}>
+            <button className={workspaceButtonClass(workspace, activeWorkspace?.id, clientCount)} onClick={() => hyprland.message_async(`dispatch hl.dsp.focus({ workspace = ${workspace.id} })`, null)}>
               <label label={String(workspace.id)} />
             </button>
           ));
