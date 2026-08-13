@@ -702,6 +702,8 @@ let
         RestartSec = 5;
         Environment = [
           "LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath [ pkgs.stdenv.cc.cc.lib ]}"
+          # Fixed web-auth password: tailscale is the real gate, this is a formality.
+          "OPENCODE_SERVER_PASSWORD=rollnroll"
         ] ++ profileEnv ++ opencodeEnvList;
       };
 
