@@ -1406,11 +1406,7 @@ in
       model: anthropic/claude-fable-5
       permission:
         edit: deny
-        bash:
-          "*": ask
-          "git status*": allow
-          "git diff*": allow
-          "git log*": allow
+        bash: allow
       ---
 
     '' + opencodeOrchestratorPrompt "minion";
@@ -1427,11 +1423,7 @@ in
           budgetTokens: 16384
       permission:
         edit: deny
-        bash:
-          "*": ask
-          "git status*": allow
-          "git diff*": allow
-          "git log*": allow
+        bash: allow
       ---
 
     '' + opencodeOrchestratorPrompt "fable-minion";
