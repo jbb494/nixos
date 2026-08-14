@@ -239,7 +239,7 @@ in
         (mkBind "${mod} + SHIFT + Q" "hl.dsp.window.close()")
         (mkBind "${mod} + mouse:274" "hl.dsp.window.close()")
         (mkBind "${mod} + SHIFT + Space" ''hl.dsp.window.float({ action = "toggle" })'')
-        (mkBind "${mod} + E" ''hl.dsp.exec_cmd("${lockAndSuspend}/bin/lock-and-suspend")'')
+        (mkBind "${mod} + E" ''hl.dsp.exec_cmd("hyprlock --grace 0 --immediate-render --no-fade-in")'')
         (mkBind "${mod} + period" "hl.dsp.exit()")
         (mkBind "${mod} + F12" ''hl.dsp.exec_cmd("hyprctl switchxkblayout all next")'')
         (mkBind "${mod} + O" ''hl.dsp.exec_cmd("${tmuxProjectsBin} oc-queue pop")'')
