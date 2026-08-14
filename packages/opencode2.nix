@@ -4,6 +4,8 @@
 , autoPatchelfHook
 , makeBinaryWrapper
 , ripgrep
+, wayland
+, xorg
 ,
 }:
 
@@ -30,8 +32,13 @@ stdenv.mkDerivation rec {
   installPhase = ''
     runHook preInstall
     install -Dm755 bin/opencode2 $out/bin/opencode2
+    # LD_LIBRARY_PATH: the TUI's native clipboard (OpenTUI/Zig, since
+    # 0.0.0-next-17122) dlopens libwayland-client.so.0 / libxcb.so.1 at
+    # runtime and silently reports "unsupported" when they are missing,
+    # breaking Ctrl+V image/text paste on NixOS.
     wrapProgram $out/bin/opencode2 \
-      --prefix PATH : ${lib.makeBinPath [ ripgrep ]}
+      --prefix PATH : ${lib.makeBinPath [ ripgrep ]} \
+      --prefix LD_LIBRARY_PATH : ${lib.makeLibraryPath [ wayland xorg.libxcb ]}
     runHook postInstall
   '';
 
