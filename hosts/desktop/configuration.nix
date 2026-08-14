@@ -37,6 +37,11 @@
 
   services = {
     xserver.videoDrivers = [ "nvidia" ];
+  } // lib.optionalAttrs (inputs.eve-protocol-observatory.available or false) {
+    eve-protocol-observatory = {
+      enable = true;
+      user = "jbellavista";
+    };
   };
 
   environment.sessionVariables = {
@@ -75,9 +80,4 @@
   };
 
   system.stateVersion = "25.11";
-} // lib.optionalAttrs (inputs.eve-protocol-observatory.available or false) {
-  services.eve-protocol-observatory = {
-    enable = true;
-    user = "jbellavista";
-  };
 }
