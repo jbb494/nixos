@@ -1429,10 +1429,19 @@ in
     '' + opencodeOrchestratorPrompt "fable-minion";
     # Adds completed/interrupted/failed top-level sessions to the tmux-projects
     # attention queue, surfaced by the bar widget and popped with $mod+O.
+    #
+    # The v2 shared background service broadcasts every session's events to
+    # every connected TUI, so each TUI's plugin instance only reports sessions
+    # it owns (open tab or focused route). Background subagents wake the root
+    # session each time they report, settling it repeatedly, so "done" waits a
+    # grace period and is dropped when the session is running again. Service
+    # shutdown interruptions resume on the next boot and are ignored.
     "opencode/attention-tui.js".text = ''
       import { execFile } from "node:child_process"
 
       const DEFAULT_TMUX_PROJECTS = "${tmuxProjectsBin}"
+      const SETTLE_MS = 2000
+      const RENAME_WAIT_MS = 3000
 
       function execute(file, args) {
         return new Promise((resolve, reject) => {
@@ -1443,6 +1452,10 @@ in
         })
       }
 
+      function sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms))
+      }
+
       export default {
         id: "attention-queue",
         setup(context) {
@@ -1451,6 +1464,7 @@ in
           const tmuxPane = process.env.TMUX_PANE
           const tmuxProjects =
             typeof context.options.tmuxProjects === "string" ? context.options.tmuxProjects : DEFAULT_TMUX_PROJECTS
+          let disposed = false
 
           const tmuxContext = async () => {
             try {
@@ -1461,7 +1475,30 @@ in
             return undefined
           }
 
-          const enqueue = async (sessionID, status, title) => {
+          const rooted = (sessionID) => {
+            try {
+              return context.data.session.root(sessionID) || sessionID
+            } catch {
+              return sessionID
+            }
+          }
+
+          // The shared service's event feed is global; only sessions surfaced
+          // in this TUI (an open tab or the focused route) belong to this
+          // tmux window's attention queue.
+          const owned = (sessionID) => {
+            const root = rooted(sessionID)
+            try {
+              const route = context.ui.router.current()
+              if (route.type === "session" && rooted(route.sessionID) === root) return true
+            } catch {}
+            try {
+              return context.ui.tabs.list().some((tab) => tab.sessionID === root)
+            } catch {}
+            return false
+          }
+
+          const resolveSession = async (sessionID) => {
             let session = context.data.session.get(sessionID)
             if (!session) {
               try {
@@ -1469,6 +1506,11 @@ in
                 session = context.data.session.get(sessionID)
               } catch {}
             }
+            return session
+          }
+
+          const enqueue = async (sessionID, status, title) => {
+            const session = await resolveSession(sessionID)
             if (session?.parentID) return
 
             const tmux = await tmuxContext()
@@ -1488,16 +1530,21 @@ in
 
           const pending = new Map()
           const ended = async (sessionID, status) => {
-            let session = context.data.session.get(sessionID)
-            if (!session) {
-              try {
-                await context.data.session.sync(sessionID)
-                session = context.data.session.get(sessionID)
-              } catch {}
-            }
+            const session = await resolveSession(sessionID)
             if (session?.parentID) return
-            if (session?.title) {
-              await enqueue(sessionID, status, session.title)
+            if (!owned(sessionID)) return
+
+            // Orchestrations settle the root session once per subagent
+            // report; only the settle that sticks deserves attention.
+            if (status === "done") {
+              await sleep(SETTLE_MS)
+              if (disposed) return
+              if (context.data.session.status(sessionID) === "running") return
+            }
+
+            const title = context.data.session.get(sessionID)?.title || session?.title
+            if (title) {
+              await enqueue(sessionID, status, title)
               return
             }
 
@@ -1506,7 +1553,7 @@ in
             const timer = setTimeout(() => {
               pending.delete(sessionID)
               void enqueue(sessionID, status)
-            }, 3000)
+            }, RENAME_WAIT_MS)
             pending.set(sessionID, { status, timer })
           }
 
@@ -1515,6 +1562,9 @@ in
               void ended(event.data.sessionID, "done")
             }),
             context.data.on("session.execution.interrupted", (event) => {
+              // Service shutdown interrupts every running session at once and
+              // the turns resume on the next boot; that is not attention.
+              if (event.data.reason === "shutdown") return
               void ended(event.data.sessionID, "done")
             }),
             context.data.on("session.execution.failed", (event) => {
@@ -1530,6 +1580,7 @@ in
           ]
 
           return () => {
+            disposed = true
             dispose.reverse().forEach((cleanup) => cleanup())
             for (const item of pending.values()) clearTimeout(item.timer)
             pending.clear()
