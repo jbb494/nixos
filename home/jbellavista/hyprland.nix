@@ -25,19 +25,27 @@ let
       # Let the shortcut modifiers be released before replacing the XKB map.
       sleep 0.35
 
-      set_ergodox_layout() {
-        local device="$1"
-        hyprctl --quiet keyword "device[$device]:kb_layout" "${ergodoxLayout}"
-        hyprctl --quiet keyword "device[$device]:kb_variant" ","
-        hyprctl --quiet keyword "device[$device]:kb_options" "grp:alt_shift_toggle"
-      }
-
-      set_ergodox_layout zsa-technology-labs-ergodox-ez
-      set_ergodox_layout zsa-technology-labs-ergodox-ez-keyboard
-
-      hyprctl --quiet keyword input:kb_layout "${globalLayout}"
-      hyprctl --quiet keyword input:kb_variant ","
-      hyprctl --quiet keyword input:kb_options "grp:alt_shift_toggle"
+      hyprctl --quiet eval '
+        hl.device({
+          name = "zsa-technology-labs-ergodox-ez",
+          kb_layout = "${ergodoxLayout}",
+          kb_variant = ",",
+          kb_options = "grp:alt_shift_toggle"
+        })
+        hl.device({
+          name = "zsa-technology-labs-ergodox-ez-keyboard",
+          kb_layout = "${ergodoxLayout}",
+          kb_variant = ",",
+          kb_options = "grp:alt_shift_toggle"
+        })
+        hl.config({
+          input = {
+            kb_layout = "${globalLayout}",
+            kb_variant = ",",
+            kb_options = "grp:alt_shift_toggle"
+          }
+        })
+      '
       hyprctl --quiet switchxkblayout all ${toString layoutIndex}
       hyprctl notify 2 1500 "rgb(${color})" "${label}" || true
     '';
@@ -277,8 +285,8 @@ in
 
         # Run layout changes on F-key release; the scripts then wait briefly so
         # rebuilding XKB cannot swallow the release of Super.
-        (mkBindFlags "${mod} + code:67" ''hl.dsp.exec_cmd("${keyboardNormalMode}/bin/keyboard-normal-mode")'' { release = true; })
-        (mkBindFlags "${mod} + code:68" ''hl.dsp.exec_cmd("${keyboardGamingMode}/bin/keyboard-gaming-mode")'' { release = true; })
+        (mkBindFlags "${mod} + F1" ''hl.dsp.exec_cmd("${keyboardNormalMode}/bin/keyboard-normal-mode")'' { release = true; })
+        (mkBindFlags "${mod} + F2" ''hl.dsp.exec_cmd("${keyboardGamingMode}/bin/keyboard-gaming-mode")'' { release = true; })
 
         (mkBindFlags "${mod} + SHIFT + right" "hl.dsp.window.resize({ x = 30, y = 0, relative = true })" { repeating = true; })
         (mkBindFlags "${mod} + SHIFT + left" "hl.dsp.window.resize({ x = -30, y = 0, relative = true })" { repeating = true; })
