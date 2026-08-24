@@ -1,4 +1,5 @@
 { inputs
+, chromeForceEgl
 , config
 , lib
 , opencodeLinearMcp
@@ -8,6 +9,12 @@
 }:
 
 let
+  # Workaround for upstream Chromium bug on Wayland + NVIDIA: software-decoded
+  # 10-bit video (e.g. Netflix AV1, HEVC Main 10) renders black with audio only.
+  # https://issuetracker.google.com/issues/548711898
+  # Forcing the EGL backend fixes presentation while staying on native Wayland.
+  chromeFlags = "--ozone-platform=wayland --enable-features=UseOzonePlatform"
+    + lib.optionalString chromeForceEgl " --use-gl=egl";
   rollnrollEnabled = !(inputs.rollnroll-devtools ? isStub);
   tmuxProjectsBin = "/etc/profiles/per-user/jbellavista/bin/tmux-projects";
   opencode2 = inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.opencode2;
@@ -1240,7 +1247,7 @@ in
       Name=Google Chrome
       GenericName=Web Browser
       Comment=Access the Internet
-      Exec=${pkgs.google-chrome}/bin/google-chrome-stable --ozone-platform=wayland --enable-features=UseOzonePlatform --new-window %U
+      Exec=${pkgs.google-chrome}/bin/google-chrome-stable ${chromeFlags} --new-window %U
       StartupNotify=true
       StartupWMClass=Google-chrome
       Terminal=false
@@ -1252,11 +1259,11 @@ in
 
       [Desktop Action new-window]
       Name=New Window
-      Exec=${pkgs.google-chrome}/bin/google-chrome-stable --ozone-platform=wayland --enable-features=UseOzonePlatform --new-window
+      Exec=${pkgs.google-chrome}/bin/google-chrome-stable ${chromeFlags} --new-window
 
       [Desktop Action new-private-window]
       Name=New Incognito Window
-      Exec=${pkgs.google-chrome}/bin/google-chrome-stable --ozone-platform=wayland --enable-features=UseOzonePlatform --incognito
+      Exec=${pkgs.google-chrome}/bin/google-chrome-stable ${chromeFlags} --incognito
     '';
     "applications/google-chrome.desktop".force = true;
 

@@ -73,6 +73,8 @@
     useUserPackages = true;
     extraSpecialArgs = {
       inherit inputs masterPkgs;
+      # NVIDIA + Wayland: force Chrome EGL backend (see home.nix chromeFlags).
+      chromeForceEgl = true;
       opencodeLinearMcp = false;
       opencodePersonalProfile = false;
     };

@@ -52,6 +52,7 @@
     useUserPackages = true;
     extraSpecialArgs = {
       inherit inputs masterPkgs;
+      chromeForceEgl = false;
       opencodeLinearMcp = true;
       opencodePersonalProfile = true;
     };
