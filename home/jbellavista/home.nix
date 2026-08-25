@@ -18,6 +18,7 @@ let
   rollnrollEnabled = !(inputs.rollnroll-devtools ? isStub);
   tmuxProjectsBin = "/etc/profiles/per-user/jbellavista/bin/tmux-projects";
   opencode2 = inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.opencode2;
+  raddebugger = inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.raddebugger;
   opencode = pkgs.runCommand "opencode" { } ''
     mkdir -p $out/bin
     ln -s ${opencode2}/bin/opencode2 $out/bin/opencode
@@ -779,12 +780,13 @@ in
       bun
       caddy
       claude-code
+      clang
       cmake
       delta
       discord
       docker-compose
       ffmpeg
-      gcc
+      gdb
       gettext
       ghostty
       gh
@@ -798,20 +800,24 @@ in
       kubectl
       lua-language-server
       mariadb
+      gnumake
       nautilus
       nodejs_22
       obs-studio
       opencode2
       opencode
       pavucontrol
+      pkg-config
       playerctl
       pnpm
       prettier
       prettierd
       python311
+      raddebugger
       rofi
       slurp
       spotify
+      strace
       stylua
       typescript-language-server
       uv
@@ -1069,6 +1075,7 @@ in
       run ${pkgs.tmux}/bin/tmux -S "$tmux_socket" source-file "${config.home.homeDirectory}/.config/tmux/tmux.conf" || true
     fi
   '';
+
 
   # The personal profile does not override XDG_CONFIG_HOME, so both profiles
   # share this writable CLI preferences file. It must not be a Nix store link.
