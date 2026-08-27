@@ -50,42 +50,6 @@ let
   # Projected into both login shells and web services, mirroring opencodeEnv.
   secretsEnvFile = "${config.home.homeDirectory}/.secrets/opencode.env";
 
-  # Shared prompt for orchestrator agents; parameterized by the minion
-  # subagent they delegate implementation to.
-  opencodeOrchestratorPrompt = minionName: ''
-    You are an orchestrator: you own all research direction and design
-    decisions, and you delegate implementation to `${minionName}` subagents.
-
-    Research — delegate breadth, keep depth:
-    - Do targeted research yourself with read/grep/glob: following a chain
-      of clues, checking a signature, confirming a pattern. Direct lookups
-      take seconds; a delegated explore costs minutes per round trip.
-    - Never chain serial research tasks. If a finding raises a follow-up
-      question, answer it yourself directly.
-    - Delegate research only when it is broad and self-contained (e.g. "map
-      how subsystem X works") or when several independent questions can run
-      in parallel — then launch them all at once, in the background.
-    - When delegating research, always specify the output contract: "Report
-      facts only — relevant files with line numbers, existing patterns,
-      constraints, and test commands. Do NOT propose an implementation
-      approach."
-
-    Subagent reports are evidence, not advice. Subagents run weaker models:
-    use their factual findings, but disregard any implementation proposals
-    they make. Design decisions are yours alone.
-
-    Implementation:
-    - Break work into independent, well-scoped tasks and delegate each to
-      the `${minionName}` subagent via the task tool with `background: true`.
-    - Write detailed, self-contained task prompts: files involved, expected
-      outcome, and how to verify (test/typecheck commands).
-    - Never launch two background tasks that touch the same files.
-    - After launching background tasks, keep planning or launch more
-      non-overlapping tasks — never poll or idle.
-    - Review results as they arrive; steer a running task by reusing its
-      task_id.
-  '';
-
   # Wrap bun so prebuilt native addons (sharp, canvas, sqlite3, ...) can dlopen
   # libstdc++.so.6 on NixOS. Scoped to bun only — no global LD_LIBRARY_PATH.
   bun = pkgs.symlinkJoin {
@@ -1374,25 +1338,7 @@ in
       "$schema" = "https://opencode.ai/config.json";
       share = "disabled";
       autoupdate = false;
-      default_agent = "orchestrator";
-      agent = {
-        general = { model = "openai/gpt-5.5"; reasoningEffort = "medium"; };
-        explore = { model = "openai/gpt-5.5"; reasoningEffort = "medium"; };
-        minion = {
-          mode = "subagent";
-          description = "Implementation worker. Executes one well-scoped coding task end to end (edit, run, verify) and reports back concisely.";
-          model = "openai/gpt-5.6-sol";
-          reasoningEffort = "medium";
-          permission = { edit = "allow"; bash = "allow"; };
-        };
-        fable-minion = {
-          mode = "subagent";
-          description = "Implementation worker on fable-5 with a low thinking budget. Executes one well-scoped coding task end to end (edit, run, verify) and reports back concisely.";
-          model = "anthropic/claude-fable-5";
-          options.thinking = { type = "enabled"; budgetTokens = 4096; };
-          permission = { edit = "allow"; bash = "allow"; };
-        };
-      };
+      model = "openai/gpt-5.6-sol";
     } // lib.optionalAttrs opencodeLinearMcp {
       # Linear MCP is host-specific; enabled per host via extraSpecialArgs.
       mcp."linear-server" = {
@@ -1411,36 +1357,6 @@ in
         ];
       };
     });
-    # Orchestrator + minion pattern: an expensive planning model (fable)
-    # delegates all implementation to cheap background minions (gpt-5.6-sol).
-    "opencode/agents/orchestrator.md".text = ''
-      ---
-      description: Fable orchestrator that delegates all implementation to background minions
-      mode: primary
-      model: anthropic/claude-fable-5
-      permission:
-        edit: deny
-        bash: allow
-      ---
-
-    '' + opencodeOrchestratorPrompt "minion";
-    # All-fable variant: fable-5 planning with a high thinking budget,
-    # delegating to low-thinking fable-5 minions.
-    "opencode/agents/fable-orchestrator.md".text = ''
-      ---
-      description: Fable orchestrator that delegates all implementation to background fable-5 minions
-      mode: primary
-      model: anthropic/claude-fable-5
-      options:
-        thinking:
-          type: enabled
-          budgetTokens: 16384
-      permission:
-        edit: deny
-        bash: allow
-      ---
-
-    '' + opencodeOrchestratorPrompt "fable-minion";
     # Adds completed/interrupted/failed top-level sessions to the tmux-projects
     # attention queue, surfaced by the bar widget and popped with $mod+O.
     #
