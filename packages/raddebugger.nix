@@ -22,6 +22,8 @@ stdenv.mkDerivation rec {
     hash = "sha256-hTX52/x1RauIaYlpv/+pPYqh68Xi7TKE7bibGkFGy3I=";
   };
 
+  patches = [ ./raddebugger-linux-modules.patch ];
+
   nativeBuildInputs = [
     clang
     makeWrapper

@@ -1,0 +1,106 @@
+diff --git a/src/linux/demon/linux_demon.c b/src/linux/demon/linux_demon.c
+index 3633f86..01eb733 100644
+--- a/src/linux/demon/linux_demon.c
++++ b/src/linux/demon/linux_demon.c
+@@ -304,6 +304,12 @@ lnx_dmn_module_info_from_process_module(Arena *arena, pid_t pid, int memory_fd,
+     
+     //- rjf: decide on debug info key info
+     String8 debug_info_path = module_path;
++    String8 rdi_path = push_str8f(arena, "%S.rdi", module_path);
++    FileProperties rdi_props = properties_from_file_path(rdi_path);
++    if(rdi_props.modified != 0 && rdi_props.size != 0)
++    {
++      debug_info_path = rdi_path;
++    }
+     Guid debug_info_guid = {0};
+     U64 debug_info_timestamp = 0;
+     U64 debug_info_age = 0;
+@@ -1199,6 +1205,73 @@ lnx_dmn_push_event_unload_module(Arena *arena, DMN_EventList *events, LNX_DMN_Pr
+   e->module  = lnx_dmn_handle_from_module(module);
+ }
+ 
++internal void
++lnx_dmn_sync_modules_from_rdebug(Arena *arena, DMN_EventList *events, LNX_DMN_Thread *thread)
++{
++  LNX_DMN_Process *process = thread->process;
++  if(process->ctx->rdebug_vaddr == 0)
++  {
++    return;
++  }
++
++  GNU_RDebugInfo64 rdebug = {0};
++  if(gnu_read_r_debug(lnx_dmn_machine_op_mem_read, &process->fd, process->ctx->rdebug_vaddr, process->ctx->arch, &rdebug) != MachineOpResult_Ok ||
++     rdebug.r_state != GNU_RT_Consistent)
++  {
++    return;
++  }
++
++  if(process->is_cow)
++  {
++    process->is_cow = 0;
++    process->ctx = lnx_dmn_process_ctx_clone(process, process->ctx);
++  }
++  LNX_DMN_ProcessCtx *ctx = process->ctx;
++  for(LNX_DMN_Module *module = ctx->first_module; module != 0; module = module->order_next)
++  {
++    module->is_live = 0;
++  }
++
++  B32 is_64bit = ctx->dl_class == ELF_Class_64;
++  for(U64 map_vaddr = rdebug.r_map; map_vaddr != 0;)
++  {
++    GNU_LinkMap64 map = {0};
++    if(gnu_read_link_map(lnx_dmn_machine_op_mem_read, &process->fd, map_vaddr, is_64bit, &map) != MachineOpResult_Ok)
++    {
++      break;
++    }
++    map_vaddr = map.next_vaddr;
++
++    LNX_DMN_Module *module = 0;
++    U64 hash = u64_hash_from_str8(str8_struct(&map.addr_vaddr));
++    U64 slot_idx = hash%ctx->module_slots_count;
++    for(LNX_DMN_Module *m = ctx->module_slots[slot_idx].first; m != 0; m = m->hash_next)
++    {
++      if(m->base_vaddr == map.addr_vaddr)
++      {
++        module = m;
++        break;
++      }
++    }
++    if(module == 0)
++    {
++      module = lnx_dmn_module_alloc(ctx, process->fd, map.addr_vaddr, map.name_vaddr, 0, 0);
++      lnx_dmn_push_event_load_module(arena, events, thread, module);
++    }
++    module->is_live = 1;
++  }
++
++  for(LNX_DMN_Module *module = ctx->first_module, *next = 0; module != 0; module = next)
++  {
++    next = module->order_next;
++    if(!module->is_live)
++    {
++      lnx_dmn_push_event_unload_module(arena, events, process, module);
++      lnx_dmn_module_release(ctx, module);
++    }
++  }
++}
++
+ ////////////////////////////////
+ //~ rjf: @dmn_os_hooks Main Layer Initialization (Implemented Per-OS)
+ 
+@@ -1810,6 +1883,14 @@ dmn_ctrl_run(Arena *arena, DMN_CtrlCtx *ctx, DMN_RunCtrls *ctrls)
+                   case SI_KERNEL:
+                   case TRAP_BRKPT:
+                   {
++                    // Some dynamic linkers omit the optional SystemTap probes. In that
++                    // case, synchronize modules from the standard r_debug link map.
++                    if(process->ctx->probes[LNX_DMN_ProbeKind_InitComplete] == 0 &&
++                       process->ctx->probes[LNX_DMN_ProbeKind_RelocComplete] == 0)
++                    {
++                      lnx_dmn_sync_modules_from_rdebug(arena, &events, thread);
++                    }
++
+                     //- rjf: unpack thread IP / process
+                     U64 ip = lnx_dmn_ip_from_thread(thread);
+                     DMN_Handle process_handle = lnx_dmn_handle_from_process(process);
