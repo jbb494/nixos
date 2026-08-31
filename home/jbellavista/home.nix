@@ -1341,20 +1341,25 @@ in
       model = "openai/gpt-5.6-sol";
     } // lib.optionalAttrs opencodeLinearMcp {
       # Linear MCP is host-specific; enabled per host via extraSpecialArgs.
-      mcp."linear-server" = {
-        type = "remote";
-        url = "https://mcp.linear.app/mcp";
-        oauth = { };
-      };
-      # Community Figma MCP (figma-developer-mcp): reads FIGMA_API_KEY from the
-      # secrets env file so it works regardless of how the daemon was spawned.
-      mcp."figma" = {
-        type = "local";
-        command = [
-          "/run/current-system/sw/bin/zsh"
-          "-c"
-          "[ -r \"\${HOME}/.secrets/opencode.env\" ] && { set -a; source \"\${HOME}/.secrets/opencode.env\"; set +a; }; export PATH=\"/etc/profiles/per-user/jbellavista/bin:$PATH\"; exec npx -y figma-developer-mcp@0.13.2 --stdio"
-        ];
+      mcp.servers = {
+        "linear-server" = {
+          type = "remote";
+          url = "https://mcp.linear.app/mcp";
+        };
+        sentry = {
+          type = "remote";
+          url = "https://mcp.sentry.dev/mcp";
+        };
+        # Community Figma MCP (figma-developer-mcp): reads FIGMA_API_KEY from the
+        # secrets env file so it works regardless of how the daemon was spawned.
+        figma = {
+          type = "local";
+          command = [
+            "/run/current-system/sw/bin/zsh"
+            "-c"
+            "[ -r \"\${HOME}/.secrets/opencode.env\" ] && { set -a; source \"\${HOME}/.secrets/opencode.env\"; set +a; }; export PATH=\"/etc/profiles/per-user/jbellavista/bin:$PATH\"; exec npx -y figma-developer-mcp@0.13.2 --stdio"
+          ];
+        };
       };
     });
     # Adds completed/interrupted/failed top-level sessions to the tmux-projects
