@@ -11,12 +11,12 @@
 
 stdenv.mkDerivation rec {
   pname = "opencode2";
-  # Fast-moving beta: query @opencode-ai/cli-linux-x64@next, then update version and hash together.
-  version = "0.0.0-next-17403";
+  # Fast-moving beta: query @opencode-ai/cli-linux-x64@beta, then update version and hash together.
+  version = "0.0.0-beta-18992";
 
   src = fetchurl {
     url = "https://registry.npmjs.org/@opencode-ai/cli-linux-x64/-/cli-linux-x64-${version}.tgz";
-    hash = "sha512-XGeaXNrEo4DRGNedk21wiQScNMGS1xxZ9c8WfoqeTEneYvQG8W2sItTxb4wXx0kMIpYbzalcLvKy+6Yz19xNjA==";
+    hash = "sha512-Noy1+FJxC+6TYQLWZR6WeNgyXQTeZr0UVlOuEUbtCJULROpji8KI8scK5kUxW4T0bcUVZTcWa2wN1dQR+rHQHg==";
   };
 
   nativeBuildInputs = [

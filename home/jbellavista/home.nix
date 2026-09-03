@@ -1046,7 +1046,8 @@ in
   # share this writable CLI preferences file. It must not be a Nix store link.
   home.activation.registerOpencodeAttentionPlugin = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     cli_file="${config.xdg.configHome}/opencode/cli.json"
-    plugin_path="${config.xdg.configHome}/opencode/attention-tui.js"
+    plugin_path="${config.xdg.configHome}/opencode/attention-queue-plugin"
+    legacy_plugin_path="${config.xdg.configHome}/opencode/attention-tui.js"
     mkdir -p "$(dirname "$cli_file")"
 
     if [ ! -e "$cli_file" ]; then
@@ -1062,13 +1063,15 @@ in
       fi
     elif ! ${pkgs.jq}/bin/jq empty "$cli_file" >/dev/null 2>&1; then
       printf 'warning: leaving malformed OpenCode CLI config unchanged: %s\n' "$cli_file" >&2
-    elif ! ${pkgs.jq}/bin/jq -e --arg package "$plugin_path" \
-      '(.plugins // []) | any(.package == $package)' "$cli_file" >/dev/null; then
+    else
       tmp="$(${pkgs.coreutils}/bin/mktemp "$cli_file.tmp.XXXXXX")"
       if ${pkgs.jq}/bin/jq \
         --arg package "$plugin_path" \
+        --arg legacyPackage "$legacy_plugin_path" \
         --arg tmuxProjects "${tmuxProjectsBin}" \
-        '.plugins = ((.plugins // []) + [{package: $package, options: {tmuxProjects: $tmuxProjects}}])' \
+        '.plugins = ((.plugins // [])
+          | map(select(type != "object" or (.package != $package and .package != $legacyPackage)))
+          + [{package: $package, options: {tmuxProjects: $tmuxProjects}}])' \
         "$cli_file" > "$tmp"; then
         mv "$tmp" "$cli_file"
       else
@@ -1372,7 +1375,8 @@ in
     # session each time they report, settling it repeatedly, so "done" waits a
     # grace period and is dropped when the session is running again. Service
     # shutdown interruptions resume on the next boot and are ignored.
-    "opencode/attention-tui.js".text = ''
+    "opencode/attention-queue-plugin/tui.js".text = ''
+      import { Plugin } from "@opencode-ai/plugin/tui"
       import { execFile } from "node:child_process"
 
       const DEFAULT_TMUX_PROJECTS = "${tmuxProjectsBin}"
@@ -1392,7 +1396,7 @@ in
         return new Promise((resolve) => setTimeout(resolve, ms))
       }
 
-      export default {
+      export default Plugin.define({
         id: "attention-queue",
         setup(context) {
           if (!process.env.TMUX || !process.env.TMUX_PANE) return
@@ -1522,7 +1526,7 @@ in
             pending.clear()
           }
         },
-      }
+      })
     '';
   };
 }
