@@ -739,6 +739,7 @@ in
       x11.enable = true;
     };
     packages = with pkgs; [
+      awscli2
       bat
       brightnessctl
       bun
