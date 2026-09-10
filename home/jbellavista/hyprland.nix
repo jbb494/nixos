@@ -182,13 +182,23 @@ in
         };
       };
 
-      # Select each monitor's highest resolution, then highest refresh rate.
-      monitor = {
-        output = "";
-        mode = "highres";
-        position = "auto";
-        scale = 1;
-      };
+      monitor = [
+        {
+          # Center this Dell above the laptop panel, regardless of which
+          # connector or dock it uses.
+          output = "desc:Dell Inc. DELL P2725H";
+          mode = "highres";
+          position = "auto-center-up";
+          scale = 1;
+        }
+        {
+          # Other displays (including the LG ultrawide) stay to the right.
+          output = "";
+          mode = "highres";
+          position = "auto-right";
+          scale = 1;
+        }
+      ];
 
       env = [
         { _args = [ "NIXOS_OZONE_WL" "1" ]; }
