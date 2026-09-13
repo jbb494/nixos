@@ -73,8 +73,8 @@
     useUserPackages = true;
     extraSpecialArgs = {
       inherit inputs masterPkgs;
-      # NVIDIA + Wayland: force Chrome EGL backend (see home.nix chromeFlags).
-      chromeForceEgl = true;
+      # Use default ANGLE: forcing EGL disables WebGL on Chrome 152.
+      chromeForceEgl = false;
       opencodeLinearMcp = false;
       opencodePersonalProfile = false;
     };
