@@ -16,6 +16,9 @@ let
   chromeFlags = "--ozone-platform=wayland --enable-features=UseOzonePlatform"
     + lib.optionalString chromeForceEgl " --use-gl=egl";
   rollnrollEnabled = !(inputs.rollnroll-devtools ? isStub);
+  summonModules = lib.concatMap
+    (input: lib.optional (input ? summonModules && input.summonModules ? default) input.summonModules.default)
+    (builtins.attrValues inputs);
   tmuxProjectsBin = "/etc/profiles/per-user/jbellavista/bin/tmux-projects";
   opencode2 = inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.opencode2;
   raddebugger = inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.raddebugger;
@@ -227,6 +230,7 @@ let
       collect_entries() {
         local nvim_only=0
         declare -gA seen=()
+        declare -gA searched=()
         entries=()
 
         if [[ "''${1:-}" == "--nvim" ]]; then
@@ -256,6 +260,8 @@ let
           local maxdepth=$((depth + 1))
 
           [[ -d "$root" ]] || return 0
+          [[ -n "''${searched[$root]:-}" ]] && return 0
+          searched["$root"]=1
 
           while IFS= read -r -d ''' git_file; do
             add_repo "$(dirname "$git_file")"
@@ -312,6 +318,22 @@ let
 
         if ! "''${tmux_command[@]}" has-session -t "=$session_name" 2>/dev/null; then
           "''${tmux_command[@]}" new-session -d -s "$session_name" -c "$path"
+        fi
+
+        # A Summon-hosted picker is disposable: hand the selected session to
+        # the most recent tmux client, or launch a normal terminal for it.
+        # The picker can then exit and be preloaded again in the background.
+        if [[ "''${TMUX_PROJECTS_SUMMON:-0}" == "1" ]]; then
+          client="$({ "''${tmux_command[@]}" list-clients -F '#{client_activity} #{client_tty}' 2>/dev/null || true; } \
+            | sort -rn \
+            | while read -r _ tty; do printf '%s' "$tty"; break; done)"
+          if [[ -n "$client" ]]; then
+            focus_tmux_terminal
+            "''${tmux_command[@]}" switch-client -c "$client" -t "=$session_name"
+          else
+            setsid --fork ghostty -e "''${tmux_command[@]}" attach-session -t "=$session_name"
+          fi
+          exit 0
         fi
 
         if [[ -n "''${TMUX:-}" ]]; then
@@ -714,8 +736,33 @@ in
 {
   imports = [
     ./hyprland.nix
+    ./summon.nix
     inputs.rollnroll-devtools.homeManagerModules.default
-  ];
+  ] ++ summonModules;
+
+  programs.summon.enable = true;
+  programs.summon.entries.tms = {
+    command = [ "${lib.getExe tmux-projects}" "select" ];
+    windowClass = "com.jbellavista.TmuxProjects";
+    title = "TMS";
+    environment.TMUX_PROJECTS_SUMMON = "1";
+    preload = true;
+    geometry = {
+      maxWidth = 1000;
+      maxHeight = 700;
+      widthRatio = 0.75;
+      heightRatio = 0.75;
+    };
+    desktop = {
+      fileName = "tmux-projects.desktop";
+      name = "TMS";
+      genericName = "Tmux Project Switcher";
+      comment = "Open a project in tmux";
+      icon = "utilities-terminal";
+      categories = [ "Development" "Utility" "TerminalEmulator" ];
+      keywords = [ "tmux" "projects" "worktree" "terminal" "ghostty" ];
+    };
+  };
 
   programs.rollnroll-devtools = lib.mkIf rollnrollEnabled {
     enable = true;
@@ -1299,21 +1346,6 @@ in
       Keywords=Screenshot;Screen;Capture;Region;Crop;Rectangle;Clipboard;Grim;Slurp;
     '';
     "applications/screenshot.desktop".force = true;
-
-    "applications/tmux-projects.desktop".text = ''
-      [Desktop Entry]
-      Name=TMS
-      GenericName=Tmux Project Switcher
-      Comment=Open a project in tmux
-      Exec=${tmux-projects}/bin/tmux-projects open
-      Icon=utilities-terminal
-      StartupNotify=false
-      Terminal=false
-      Type=Application
-      Categories=Development;Utility;TerminalEmulator;
-      Keywords=tmux;projects;worktree;terminal;ghostty;
-    '';
-    "applications/tmux-projects.desktop".force = true;
 
     "applications/opencode-attention.desktop".text = ''
       [Desktop Entry]

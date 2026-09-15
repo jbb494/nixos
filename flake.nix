@@ -99,6 +99,7 @@
 
       packages.${system} = {
         inherit xkeyboardConfigErgodox;
+        summon = pkgs.callPackage ./packages/summon.nix { };
         jbellavista-shell = pkgs.callPackage ./packages/jbellavista-shell.nix {
           rollnrollShellModule = inputs.rollnroll-devtools.shellModules.ags.rollnroll or null;
           inherit eveRuntimePackages eveShellModule;
