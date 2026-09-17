@@ -22,7 +22,11 @@
   console.keyMap = pkgs.lib.mkForce "dvorak";
 
   boot = {
-    loader.systemd-boot.enable = true;
+    loader.systemd-boot.enable = lib.mkForce false;
+    lanzaboote = {
+      enable = true;
+      pkiBundle = "/var/lib/sbctl";
+    };
   };
 
   hardware = {
@@ -50,6 +54,7 @@
     __GLX_VENDOR_LIBRARY_NAME = "nvidia";
   };
 
+  environment.systemPackages = [ pkgs.sbctl ];
   programs.wireshark.enable = true;
 
   users.mutableUsers = true;

@@ -113,6 +113,77 @@ Closing a preloaded popup terminates that command and prepares a clean replaceme
 
 Flake inputs can contribute registrations by exporting a Home Manager module as `summonModules.default`. Those modules are discovered generically, so application names, commands, and desktop metadata remain owned by their source repositories. The broker backend and `summonctl` protocol can evolve without changing those registrations.
 
+## Optional Desktop Secure Boot
+
+This procedure applies only to `nixosConfigurations.desktop`. The EVO15 keeps
+using ordinary systemd-boot without Secure Boot. Lanzaboote-signed desktop
+generations boot whether firmware Secure Boot is enabled or disabled.
+
+Keep Secure Boot disabled until a signed desktop generation has been installed
+and verified. Signing keys are machine-local state under `/var/lib/sbctl`; never
+commit them to this repository.
+
+One-time setup on the desktop:
+
+1. Create the signing keys while Secure Boot is still disabled:
+
+   ```sh
+   nix shell nixpkgs#sbctl -c sh -c 'sudo env PATH="$PATH" sbctl create-keys'
+   ```
+
+2. Install and verify a signed desktop generation:
+
+   ```sh
+   sudo nixos-rebuild switch --flake .#desktop
+   sudo sbctl verify
+   ```
+
+   The bootloader and files under `/boot/EFI/Linux/` must be signed. It is
+   expected that legacy `/boot/EFI/nixos/kernel-*.efi` files are unsigned; do
+   not sign them manually.
+
+3. Reboot-test NixOS once while Secure Boot is still disabled.
+
+4. Back up `/var/lib/sbctl` to encrypted offline storage. The backup contains
+   private signing keys and must not be stored unencrypted or committed to Git.
+
+5. If Windows is installed, run `manage-bde -status C:` there before changing
+   firmware keys. Save its recovery key and suspend protection first if
+   BitLocker or device encryption is enabled.
+
+6. On the MSI MAG B850 TOMAHAWK MAX WIFI, use these firmware settings:
+
+   - Secure Boot: **Disabled**
+   - Secure Boot Mode: **Custom**
+   - Secure Boot Preset: **Maximum Security**
+   - Factory Key Provision: **Disabled**
+   - Key Management: **Reset to Setup Mode**
+
+   Do not select **Restore Factory Keys** or **Enroll EFI Image**. Save, leave
+   Secure Boot disabled, and boot NixOS again. `sbctl` reports firmware quirk
+   `FQ0001` for MSI desktop boards even after selecting Maximum Security.
+
+7. Confirm Setup Mode and enroll both the local and Microsoft keys. Microsoft
+   keys are required for Windows and may also be needed by device option ROMs:
+
+   ```sh
+   sudo sbctl status
+   sudo sbctl enroll-keys --microsoft
+   sudo sbctl status
+   ```
+
+8. Reboot into firmware, keep Custom mode, Maximum Security, and Factory Key
+   Provision disabled, then enable Secure Boot. After booting NixOS, verify:
+
+   ```sh
+   bootctl status
+   sudo sbctl status
+   ```
+
+If a firmware reset or update removes the enrolled local keys, disable Secure
+Boot and restore/re-enroll the backed-up keys. Do not generate replacement keys
+unless intentionally rotating them.
+
 ## Non-Destructive Checks
 
 From a machine with Nix installed:
