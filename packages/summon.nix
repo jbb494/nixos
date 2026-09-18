@@ -33,7 +33,7 @@ stdenvNoCC.mkDerivation {
 
     makeWrapper ${python3}/bin/python3 $out/bin/summond \
       --add-flags "$out/libexec/summon.py daemon" \
-      --prefix PATH : ${lib.makeBinPath [ ghostty hyprland ]}
+      --prefix PATH : ${lib.makeBinPath [ ghostty hyprland systemd ]}
     makeWrapper ${python3}/bin/python3 $out/bin/summonctl \
       --add-flags "$out/libexec/summon.py" \
       --prefix PATH : ${lib.makeBinPath [ systemd ]}

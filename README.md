@@ -109,7 +109,7 @@ summonctl open <id>
 summonctl close <id>
 ```
 
-Closing a preloaded popup terminates that command and prepares a clean replacement in the background. The broker owns only windows whose configured class and spawned process both match; it never injects commands into unrelated terminals. Per-popup logs live under `$XDG_RUNTIME_DIR/summon`.
+Closing a preloaded popup terminates that command and prepares a clean replacement in the background. Popup processes run in independent transient systemd scopes, so commands handed off by a popup survive broker restarts. The broker owns only windows whose configured class and spawned process both match; it never injects commands into unrelated terminals. Per-popup logs live under `$XDG_RUNTIME_DIR/summon`.
 
 Flake inputs can contribute registrations by exporting a Home Manager module as `summonModules.default`. Those modules are discovered generically, so application names, commands, and desktop metadata remain owned by their source repositories. The broker backend and `summonctl` protocol can evolve without changing those registrations.
 

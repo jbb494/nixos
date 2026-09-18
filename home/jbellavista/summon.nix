@@ -173,6 +173,10 @@ in
         Restart = "on-failure";
         RestartSec = 1;
         TimeoutStopSec = 5;
+        # Popup commands run in independent transient scopes. During the first
+        # migration, avoid killing any descendants inherited from the previous
+        # non-scoped implementation when this service restarts.
+        KillMode = "process";
         UMask = "0077";
       };
       Install.WantedBy = [ "graphical-session.target" ];

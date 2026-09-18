@@ -100,6 +100,14 @@ class HyprlandTests(unittest.TestCase):
         with self.assertRaisesRegex(summon.SummonError, "invalid popup address"):
             summon.focus_popup(self.popup, "activewindow", 4, 900, 700)
 
+    def test_popup_runs_in_an_independent_systemd_scope(self):
+        command = summon.popup_command(self.popup, 3, host_pid=42)
+        self.assertEqual(command[:8], [
+            "systemd-run", "--user", "--scope", "--quiet", "--collect",
+            "--unit=summon-popup-example-42-3", "--", "ghostty",
+        ])
+        self.assertEqual(command[-3:], ["-e", "/bin/example", "--safe"])
+
 
 if __name__ == "__main__":
     unittest.main()

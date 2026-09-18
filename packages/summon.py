@@ -231,6 +231,24 @@ hl.dispatch(hl.dsp.window.center({{ window = window }}))
 hl.dispatch(hl.dsp.focus({{ window = window }}))'''
 
 
+def popup_command(spec: PopupSpec, generation: int, host_pid: int | None = None) -> list[str]:
+    scope = f"summon-popup-{spec.identifier}-{host_pid or os.getpid()}-{generation}"
+    return [
+        "systemd-run", "--user", "--scope", "--quiet", "--collect", f"--unit={scope}", "--",
+        "ghostty",
+        f"--class={spec.window_class}",
+        f"--title={spec.title}",
+        "--gtk-single-instance=false",
+        "--wait-after-command=false",
+        "--quit-after-last-window-closed=true",
+        f"--working-directory={spec.working_directory}",
+        "--window-width=120",
+        "--window-height=38",
+        "-e",
+        *spec.command,
+    ]
+
+
 class PopupHost:
     def __init__(self, specs: dict[str, PopupSpec], directory: Path) -> None:
         self.states = {identifier: PopupState(spec) for identifier, spec in specs.items()}
@@ -311,21 +329,8 @@ class PopupHost:
                 flags |= os.O_NOFOLLOW
             descriptor = os.open(log_path, flags, 0o600)
             try:
-                arguments = [
-                    "ghostty",
-                    f"--class={state.spec.window_class}",
-                    f"--title={state.spec.title}",
-                    "--gtk-single-instance=false",
-                    "--wait-after-command=false",
-                    "--quit-after-last-window-closed=true",
-                    f"--working-directory={state.spec.working_directory}",
-                    "--window-width=120",
-                    "--window-height=38",
-                    "-e",
-                    *state.spec.command,
-                ]
                 state.process = subprocess.Popen(
-                    arguments,
+                    popup_command(state.spec, generation),
                     stdin=subprocess.DEVNULL,
                     stdout=descriptor,
                     stderr=descriptor,
