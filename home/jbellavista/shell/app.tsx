@@ -44,6 +44,7 @@ const savedWifiConnections = Variable<Map<string, string>>(new Map());
 const bluetoothBusyAddress = Variable<string | null>(null);
 const bluetoothConnectionError = Variable('');
 const dropdownMarginTop = 72;
+const starcraftGamescopeClass = 'gamescope';
 let networkManagerClient: NM.Client;
 const watchedMediaPlayers = new Set<string>();
 
@@ -1582,8 +1583,19 @@ const OpencodeDropdown = (monitor: number) => (
   </window>
 );
 
-const Bar = (monitor: number) => (
-  <window
+const Bar = (monitor: number) => {
+  const hyprMonitor = hyprMonitorForGdk(monitor);
+  const visible = Variable.derive(
+    [bind(hyprland, 'clients'), bind(hyprMonitor, 'activeWorkspace')],
+    (clients, activeWorkspace) => !clients.some((client) => (
+      client.class === starcraftGamescopeClass
+      && client.title === 'StarCraft II'
+      && client.workspace?.id === activeWorkspace?.id
+      && client.monitor?.name === hyprMonitor.name
+    )),
+  );
+
+  return <window
     application={App}
     name={`jbellavista-shell-bar-${monitor}`}
     namespace="jbellavista-shell"
@@ -1592,7 +1604,7 @@ const Bar = (monitor: number) => (
     layer={Astal.Layer.TOP}
     anchor={Astal.WindowAnchor.TOP | Astal.WindowAnchor.LEFT | Astal.WindowAnchor.RIGHT}
     exclusivity={Astal.Exclusivity.EXCLUSIVE}
-    visible
+    visible={visible()}
   >
     <box className="bar-shell" hexpand>
       <centerbox
@@ -1653,8 +1665,8 @@ const Bar = (monitor: number) => (
         }
       />
     </box>
-  </window>
-);
+  </window>;
+};
 
 let monitorCount = 0;
 

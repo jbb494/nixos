@@ -736,6 +736,7 @@ in
 {
   imports = [
     ./hyprland.nix
+    ./starcraft
     ./summon.nix
     inputs.rollnroll-devtools.homeManagerModules.default
   ] ++ summonModules;
