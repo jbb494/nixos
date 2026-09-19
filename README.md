@@ -91,7 +91,7 @@ sudo env NIXOS_FLAKE_REF=github:jbb494/nixos#evo15 nix --experimental-features "
 - Laptop GUI default: `es(cat)` with `us` as secondary layout.
 - Ergodox GUI devices: `ergodox-dvorak` with `us` as secondary layout.
 - Ergodox Oryx firmware layout: [Default minimalist Starcraft II](https://configure.zsa.io/ergodox-ez/layouts/7mKlb/latest/0) ([debounce settings](https://configure.zsa.io/ergodox-ez/layouts/7mKlb/latest/config/debounce)).
-- The flashable firmware and QMK keymap source are archived in [`firmware/ergodox-ez/default-minimalist-starcraft-ii`](firmware/ergodox-ez/default-minimalist-starcraft-ii).
+- The flashable firmware and locally maintained QMK keymap source are in [`firmware/ergodox-ez/default-minimalist-starcraft-ii`](firmware/ergodox-ez/default-minimalist-starcraft-ii).
 - Hyprland layout switch fallback: `Super+F12`.
 
 The first boot should verify actual Hyprland device names with:

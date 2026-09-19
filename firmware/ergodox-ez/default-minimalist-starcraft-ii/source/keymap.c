@@ -69,7 +69,8 @@ uint8_t layer_state_set_user(uint8_t state) {
       ergodox_right_led_1_on();
       break;
     case 2:
-      ergodox_right_led_2_on();
+      // The StarCraft layer stays active for an entire game, so do not keep
+      // the bright green layer indicator illuminated.
       break;
     case 3:
       ergodox_right_led_3_on();
