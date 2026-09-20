@@ -28,6 +28,7 @@ LAUNCH_OPTIONS = (
     "$HOME/.local/state/nix/profiles/home-manager/home-path/bin/"
     "starcraft-gamescope %command%"
 )
+STARCRAFT_ARGUMENTS = '--exec="launch S2"'
 
 
 def replace_atomically(path: Path, write: Callable[[Path], None]) -> None:
@@ -60,6 +61,11 @@ def sync_shortcut() -> None:
         if BATTLE_NET_LAUNCHER.exists()
         else BATTLE_NET_INSTALLER
     )
+    launch_options = (
+        f"{LAUNCH_OPTIONS} {STARCRAFT_ARGUMENTS}"
+        if BATTLE_NET_LAUNCHER.exists()
+        else LAUNCH_OPTIONS
+    )
     executable_value = f'"{executable}"'
     start_directory = f"{executable.parent}/"
     created = False
@@ -87,12 +93,12 @@ def sync_shortcut() -> None:
         created = True
         shortcut = {
             "appid": SIGNED_APP_ID,
-            "AppName": "Battle.net-Setup.exe",
+            "AppName": "StarCraft II",
             "Exe": executable_value,
             "StartDir": start_directory,
             "icon": "",
             "ShortcutPath": "",
-            "LaunchOptions": LAUNCH_OPTIONS,
+            "LaunchOptions": launch_options,
             "IsHidden": 0,
             "AllowDesktopConfig": 1,
             "AllowOverlay": 1,
@@ -109,14 +115,16 @@ def sync_shortcut() -> None:
 
     changed = created or (
         shortcut.get("appid") != SIGNED_APP_ID
+        or shortcut.get("AppName") != "StarCraft II"
         or shortcut.get("Exe") != executable_value
         or shortcut.get("StartDir") != start_directory
-        or shortcut.get("LaunchOptions") != LAUNCH_OPTIONS
+        or shortcut.get("LaunchOptions") != launch_options
     )
     shortcut["appid"] = SIGNED_APP_ID
+    shortcut["AppName"] = "StarCraft II"
     shortcut["Exe"] = executable_value
     shortcut["StartDir"] = start_directory
-    shortcut["LaunchOptions"] = LAUNCH_OPTIONS
+    shortcut["LaunchOptions"] = launch_options
 
     if not changed:
         return

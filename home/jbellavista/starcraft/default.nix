@@ -49,9 +49,25 @@ let
       done
     '';
   };
+  starcraftSteamGameId = "13439389832463777792";
 in
 lib.mkIf (osConfig.networking.hostName == "desktop") {
   home.packages = [ starcraftGamescope ];
+
+  xdg.dataFile."applications/starcraft-ii.desktop".text = ''
+    [Desktop Entry]
+    Version=1.0
+    Type=Application
+    Name=StarCraft II
+    GenericName=Real-time Strategy Game
+    Comment=Launch StarCraft II through Steam and Battle.net
+    Exec=${pkgs.steam}/bin/steam steam://rungameid/${starcraftSteamGameId}
+    Icon=steam
+    Terminal=false
+    StartupNotify=false
+    Categories=Game;StrategyGame;
+    Keywords=StarCraft;SC2;Battle.net;Blizzard;Protoss;
+  '';
 
   systemd.user.services.sync-starcraft-steam-shortcut = {
     Unit = {
