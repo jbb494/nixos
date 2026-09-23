@@ -73,6 +73,9 @@ nix shell nixpkgs#qmk nixpkgs#dos2unix
 - The normal left Space position sends Shift.
 - The normal left Enter position is the Building Select key; there is no Space
   binding on the StarCraft layer.
+- The physical Previous Track position—the upper-left small key in the left
+  thumb cluster—holds Ctrl+Shift for adding every visible object of the clicked
+  type to the current selection.
 - The right-thumb Escape position becomes Enter for chat.
 
 ### Control groups
@@ -106,4 +109,6 @@ W                    Warp Gates
 ```
 
 There is no dedicated add-to-group action. Select the existing group, extend
-the selection with Shift, and replace the group using its set action.
+the selection with Shift, and replace the group using its set action. To add
+all visible objects of one type at once, hold the Ctrl+Shift thumb key and click
+one of them before replacing the group.
