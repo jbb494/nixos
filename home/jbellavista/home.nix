@@ -180,6 +180,7 @@ let
       fzf
       ghostty
       hyprland
+      inotify-tools
       jq
       tmux
       util-linux
@@ -258,6 +259,7 @@ let
           local root="$1"
           local depth="$2"
           local maxdepth=$((depth + 1))
+          local git_file=""
 
           [[ -d "$root" ]] || return 0
           [[ -n "''${searched[$root]:-}" ]] && return 0
@@ -288,33 +290,176 @@ let
         shopt -u nullglob
       }
 
-      select_project() {
+      project_lines() {
         collect_entries "$@"
+        if [[ ''${#entries[@]} -gt 0 ]]; then
+          printf '%s\n' "''${entries[@]}" | sort
+        fi
+      }
 
-        if [[ ''${#entries[@]} -eq 0 ]]; then
-          printf 'tmux-projects: no repositories found\n' >&2
-          exit 1
+      project_watch_dirs() {
+        local nvim_only=0
+        local home_prefix=""
+        local workspace=""
+        local worktrees_dir=""
+        declare -A watch_seen=()
+
+        if [[ "''${1:-}" == "--nvim" ]]; then
+          nvim_only=1
         fi
 
-        selection="$(printf '%s\n' "''${entries[@]}" \
-          | sort \
-          | cut -f1 \
-          | fzf --prompt='Projects> ')"
+        add_watch_dir() {
+          local path="$1"
+
+          [[ -d "$path" ]] || return 0
+          [[ -n "''${watch_seen[$path]:-}" ]] && return 0
+          watch_seen["$path"]=1
+          printf '%s\0' "$path"
+        }
+
+        add_watch_tree() {
+          local root="$1"
+          local depth="$2"
+          local directory=""
+
+          [[ -d "$root" ]] || return 0
+          while IFS= read -r -d ''' directory; do
+            case "$directory" in
+              */.git | */.git/*) continue ;;
+            esac
+            add_watch_dir "$directory"
+          done < <(find "$root" -mindepth 0 -maxdepth "$depth" \
+            \( -name .git -o -name node_modules -o -name .next -o -name .turbo \
+              -o -name .gradle -o -name .kotlin -o -name .mysql-data \
+              -o -name .ruff_cache -o -name build -o -name dist -o -name target \) -prune \
+            -o -type d -print0 2>/dev/null)
+        }
+
+        if [[ "$nvim_only" == "1" ]]; then
+          add_watch_tree "$HOME/.local/share/nvim/lazy" 1
+          return
+        fi
+
+        add_watch_tree "$HOME/personal" 2
+        add_watch_tree "$HOME/.local/src" 1
+
+        shopt -s nullglob
+        for worktrees_dir in "$HOME"/*/*-worktrees "$HOME"/*/worktrees; do
+          [[ -d "$worktrees_dir" ]] || continue
+          home_prefix="$HOME/"
+          workspace="''${worktrees_dir#"$home_prefix"}"
+          workspace="''${workspace%%/*}"
+          add_watch_tree "$HOME/$workspace" 2
+        done
+        shopt -u nullglob
+      }
+
+      # Waits for shallow repository/worktree topology changes and asks the
+      # running fzf picker to reload. A lightweight guard stops this helper
+      # when fzf exits; project discovery itself runs exclusively after events.
+      project_watch() {
+        [[ -n "''${FZF_PORT:-}" ]] || exit 0
+
+        local last=""
+        local current=""
+        local reload_command="$0 project-lines"
+        local watcher_pid="$$"
+        local guard_pid=""
+        local inotify_pid=""
+        local -a line_args=()
+        local -a watch_dirs=()
+
+        if [[ "''${1:-}" == "--nvim" ]]; then
+          line_args=(--nvim)
+          reload_command+=" --nvim"
+        fi
+
+        cleanup_project_watch() {
+          if [[ -n "$inotify_pid" ]]; then
+            kill -TERM "$inotify_pid" 2>/dev/null || true
+          fi
+          if [[ -n "$guard_pid" ]]; then
+            kill -TERM "$guard_pid" 2>/dev/null || true
+          fi
+        }
+
+        start_project_inotify() {
+          watch_dirs=()
+          mapfile -d ''' -t watch_dirs < <("$0" project-watch-dirs "''${line_args[@]}")
+          [[ ''${#watch_dirs[@]} -gt 0 ]] || return 1
+          inotifywait --quiet \
+            --event create --event delete \
+            --event moved_to --event moved_from \
+            --event delete_self --event move_self \
+            "''${watch_dirs[@]}" >/dev/null 2>&1 &
+          inotify_pid="$!"
+        }
+
+        trap cleanup_project_watch EXIT
+        trap 'exit 0' INT TERM
+
+        (
+          while curl -fsS -o /dev/null "localhost:''${FZF_PORT}" 2>/dev/null; do
+            sleep 1
+          done
+          kill -TERM "$watcher_pid" 2>/dev/null || true
+        ) &
+        guard_pid="$!"
+
+        # Start watching before taking the baseline so a change cannot land
+        # between the initial query and inotify registration.
+        start_project_inotify || exit 0
+        last="$("$0" project-lines "''${line_args[@]}" | sha256sum | cut -d ' ' -f1)"
+        curl -fsS -o /dev/null -XPOST "localhost:''${FZF_PORT}" \
+          -d "reload($reload_command)" 2>/dev/null || exit 0
+
+        while :; do
+          wait "$inotify_pid" || true
+          inotify_pid=""
+          curl -fsS -o /dev/null "localhost:''${FZF_PORT}" 2>/dev/null || exit 0
+
+          # Coalesce bursts such as git worktree add/remove before rescanning.
+          sleep 0.15
+          # Arm the next wait before querying so events during the rescan are
+          # queued rather than falling into a handoff gap.
+          start_project_inotify || exit 0
+          current="$("$0" project-lines "''${line_args[@]}" | sha256sum | cut -d ' ' -f1)"
+          if [[ "$current" != "$last" ]]; then
+            curl -fsS -o /dev/null -XPOST "localhost:''${FZF_PORT}" \
+              -d "reload($reload_command)" 2>/dev/null || exit 0
+            last="$current"
+          fi
+        done
+      }
+
+      select_project() {
+        local watch_command="$0 project-watch"
+        local -a line_args=()
+
+        if [[ "''${1:-}" == "--nvim" ]]; then
+          line_args=(--nvim)
+          watch_command+=" --nvim"
+        fi
+
+        selection="$("$0" project-lines "''${line_args[@]}" | FZF_DEFAULT_COMMAND=: fzf \
+          --listen \
+          --delimiter='\t' --with-nth=1 --tiebreak=index \
+          --track --id-nth=2 \
+          --prompt='Projects> ' \
+          --bind "start:execute-silent(nohup $watch_command >/dev/null 2>&1 &)" \
+          || true)"
 
         [[ -n "$selection" ]] || exit 0
 
-        path=""
-        for entry in "''${entries[@]}"; do
-          label="''${entry%%$'\t'*}"
-          if [[ "$label" == "$selection" ]]; then
-            path="''${entry#*$'\t'}"
-            break
-          fi
-        done
+        label="''${selection%%$'\t'*}"
+        path="''${selection#*$'\t'}"
+        [[ -n "$path" && "$path" != "$selection" ]] || exit 1
+        if [[ ! -d "$path" || ! -e "$path/.git" ]]; then
+          printf 'tmux-projects: selected repository disappeared: %s\n' "$path" >&2
+          exit 1
+        fi
 
-        [[ -n "$path" ]] || exit 1
-
-        session_name="$(printf '%s' "$selection" | tr '/.:' '___')"
+        session_name="$(printf '%s' "$label" | tr '/.:' '___')"
 
         if ! "''${tmux_command[@]}" has-session -t "=$session_name" 2>/dev/null; then
           "''${tmux_command[@]}" new-session -d -s "$session_name" -c "$path"
@@ -672,6 +817,9 @@ let
       case "$command" in
         open) open_picker "$@" ;;
         select) select_project "$@" ;;
+        project-lines) project_lines "$@" ;;
+        project-watch-dirs) project_watch_dirs "$@" ;;
+        project-watch) project_watch "$@" ;;
         switch) switch_session ;;
         windows) switch_window ;;
         sessions) print_sessions ;;
