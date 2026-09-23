@@ -25,8 +25,7 @@ BATTLE_NET_CONFIG = (
 )
 BATTLE_NET_INSTALLER = Path(os.environ["BATTLE_NET_INSTALLER"])
 LAUNCH_OPTIONS = (
-    "$HOME/.local/state/nix/profiles/home-manager/home-path/bin/"
-    "starcraft-gamescope %command%"
+    'LD_PRELOAD="" "$HOME/.local/bin/starcraft-gamescope" %command%'
 )
 STARCRAFT_ARGUMENTS = '--exec="launch S2"'
 
@@ -101,7 +100,7 @@ def sync_shortcut() -> None:
             "LaunchOptions": launch_options,
             "IsHidden": 0,
             "AllowDesktopConfig": 1,
-            "AllowOverlay": 1,
+            "AllowOverlay": 0,
             "OpenVR": 0,
             "Devkit": 0,
             "DevkitGameID": "",
@@ -119,12 +118,14 @@ def sync_shortcut() -> None:
         or shortcut.get("Exe") != executable_value
         or shortcut.get("StartDir") != start_directory
         or shortcut.get("LaunchOptions") != launch_options
+        or shortcut.get("AllowOverlay") != 0
     )
     shortcut["appid"] = SIGNED_APP_ID
     shortcut["AppName"] = "StarCraft II"
     shortcut["Exe"] = executable_value
     shortcut["StartDir"] = start_directory
     shortcut["LaunchOptions"] = launch_options
+    shortcut["AllowOverlay"] = 0
 
     if not changed:
         return

@@ -54,6 +54,11 @@ in
 lib.mkIf (osConfig.networking.hostName == "desktop") {
   home.packages = [ starcraftGamescope ];
 
+  # Steam's sandbox can access the home directory, but not the per-user
+  # profile under /etc. Keep a stable launcher path across HM generations.
+  home.file.".local/bin/starcraft-gamescope".source =
+    "${starcraftGamescope}/bin/starcraft-gamescope";
+
   xdg.dataFile."applications/starcraft-ii.desktop".text = ''
     [Desktop Entry]
     Version=1.0
