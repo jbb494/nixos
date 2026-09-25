@@ -5,13 +5,17 @@ let
     name = "starcraft-gamescope";
     runtimeInputs = [ pkgs.gamescope ];
     text = ''
+      # Steam's FHS namespace omits /etc/egl, where NVIDIA normally discovers
+      # its external EGL platform modules. The same modules are exposed here.
+      export __EGL_EXTERNAL_PLATFORM_CONFIG_DIRS=/run/opengl-driver/share/egl/egl_external_platform.d
+
       exec gamescope \
         --output-width 2560 \
         --output-height 1440 \
         --nested-width 2560 \
         --nested-height 1440 \
         --borderless \
-        -- "$@"
+        -- env -u __EGL_EXTERNAL_PLATFORM_CONFIG_DIRS "$@"
     '';
   };
   battleNetInstaller = pkgs.fetchurl {
