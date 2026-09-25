@@ -180,6 +180,9 @@ in
           # Resolve binds against the active keyboard's layout, not the first one.
           resolve_binds_by_sym = true;
         };
+
+        # Keyboard focus changes, including Summon popups, must not move the pointer.
+        cursor.no_warps = true;
       };
 
       monitor = [

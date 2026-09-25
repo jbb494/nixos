@@ -411,7 +411,7 @@ let
         start_project_inotify || exit 0
         last="$("$0" project-lines "''${line_args[@]}" | sha256sum | cut -d ' ' -f1)"
         curl -fsS -o /dev/null -XPOST "localhost:''${FZF_PORT}" \
-          -d "reload($reload_command)" 2>/dev/null || exit 0
+          -d "track-current+reload($reload_command)" 2>/dev/null || exit 0
 
         while :; do
           wait "$inotify_pid" || true
@@ -426,7 +426,7 @@ let
           current="$("$0" project-lines "''${line_args[@]}" | sha256sum | cut -d ' ' -f1)"
           if [[ "$current" != "$last" ]]; then
             curl -fsS -o /dev/null -XPOST "localhost:''${FZF_PORT}" \
-              -d "reload($reload_command)" 2>/dev/null || exit 0
+              -d "track-current+reload($reload_command)" 2>/dev/null || exit 0
             last="$current"
           fi
         done
@@ -441,12 +441,14 @@ let
           watch_command+=" --nvim"
         fi
 
+        # project-watch tracks the current path only while reloading. Drop that
+        # tracking after each load so typing follows fzf's highest-ranked match.
         selection="$("$0" project-lines "''${line_args[@]}" | FZF_DEFAULT_COMMAND=: fzf \
           --listen \
           --delimiter='\t' --with-nth=1 --tiebreak=index \
-          --track --id-nth=2 \
+          --id-nth=2 \
           --prompt='Projects> ' \
-          --bind "start:execute-silent(nohup $watch_command >/dev/null 2>&1 &)" \
+          --bind "load:untrack-current,start:execute-silent(nohup $watch_command >/dev/null 2>&1 &)" \
           || true)"
 
         [[ -n "$selection" ]] || exit 0
