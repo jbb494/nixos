@@ -11,12 +11,12 @@
 
 stdenv.mkDerivation rec {
   pname = "opencode2";
-  # Fast-moving beta: query @opencode-ai/cli-linux-x64@beta, then update version and hash together.
-  version = "0.0.0-beta-18992";
+  # Stable V2 binary from the @opencode npm scope.
+  version = "2.0.16";
 
   src = fetchurl {
-    url = "https://registry.npmjs.org/@opencode-ai/cli-linux-x64/-/cli-linux-x64-${version}.tgz";
-    hash = "sha512-Noy1+FJxC+6TYQLWZR6WeNgyXQTeZr0UVlOuEUbtCJULROpji8KI8scK5kUxW4T0bcUVZTcWa2wN1dQR+rHQHg==";
+    url = "https://registry.npmjs.org/@opencode/cli-linux-x64/-/cli-linux-x64-${version}.tgz";
+    hash = "sha512-BVmvVddA7c4VhSXgTiGtZB9pU+xTyFgsd56KkvQoYMydqy8xfzPGu9BRwQVCG/RTxGhRAwda/MYEWarddscIUg==";
   };
 
   nativeBuildInputs = [
@@ -31,7 +31,7 @@ stdenv.mkDerivation rec {
 
   installPhase = ''
     runHook preInstall
-    install -Dm755 bin/opencode2 $out/bin/opencode2
+    install -Dm755 bin/opencode $out/bin/opencode2
     # LD_LIBRARY_PATH: the TUI's native clipboard (OpenTUI/Zig, since
     # 0.0.0-next-17122) dlopens libwayland-client.so.0 / libxcb.so.1 at
     # runtime and silently reports "unsupported" when they are missing,

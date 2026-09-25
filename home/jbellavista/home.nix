@@ -1559,7 +1559,7 @@ in
     # grace period and is dropped when the session is running again. Service
     # shutdown interruptions resume on the next boot and are ignored.
     "opencode/attention-queue-plugin/tui.js".text = ''
-      import { Plugin } from "@opencode-ai/plugin/tui"
+      import { Plugin } from "@opencode/plugin/tui"
       import { execFile } from "node:child_process"
 
       const DEFAULT_TMUX_PROJECTS = "${tmuxProjectsBin}"
