@@ -319,6 +319,12 @@ class PopupHost:
         async with state.lock:
             if state.process is not None and state.process.poll() is None:
                 return
+            # Hyprland clears rules registered through `hyprctl eval` whenever
+            # its Lua configuration reloads. Reinstall this rule immediately
+            # before every spawn so a replacement cannot open on the active
+            # workspace after a Home Manager switch.
+            _, width, height = popup_target(await self.monitors(), state.spec)
+            await self.evaluate(popup_rule(state.spec, width, height, self.hidden_workspace))
             state.ready.clear()
             state.address = None
             state.generation += 1

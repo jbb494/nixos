@@ -1,7 +1,10 @@
 import importlib.util
 import os
+from pathlib import Path
 import sys
+import tempfile
 import unittest
+from unittest import mock
 
 
 spec = importlib.util.spec_from_file_location("summon", __file__.replace("summon-test.py", "summon.py"))
@@ -107,6 +110,56 @@ class HyprlandTests(unittest.TestCase):
             "--unit=summon-popup-example-42-3", "--", "ghostty",
         ])
         self.assertEqual(command[-3:], ["-e", "/bin/example", "--safe"])
+
+
+class PopupHostTests(unittest.IsolatedAsyncioTestCase):
+    async def test_reinstalls_window_rule_before_every_spawn(self):
+        class FakeProcess:
+            def __init__(self, pid):
+                self.pid = pid
+                self.returncode = None
+
+            def poll(self):
+                return self.returncode
+
+        monitors = [{
+            "focused": True,
+            "width": 1920,
+            "height": 1080,
+            "scale": 1,
+            "transform": 0,
+            "reserved": [0, 0, 0, 0],
+            "activeWorkspace": {"id": 4, "name": "4"},
+            "specialWorkspace": {"id": 0, "name": ""},
+        }]
+        processes = [FakeProcess(1001), FakeProcess(1002)]
+
+        with tempfile.TemporaryDirectory() as directory:
+            popup_spec = summon.parse_config({"apps": {"example": popup()}})["example"]
+            host = summon.PopupHost({"example": popup_spec}, Path(directory))
+            state = host.states["example"]
+            evaluated = []
+
+            async def get_monitors():
+                return monitors
+
+            async def evaluate(code):
+                evaluated.append(code)
+
+            def discard_task(coroutine):
+                coroutine.close()
+
+            host.monitors = get_monitors
+            host.evaluate = evaluate
+            host.add_task = discard_task
+
+            with mock.patch.object(summon.subprocess, "Popen", side_effect=processes):
+                await host.ensure_started(state)
+                processes[0].returncode = 0
+                await host.ensure_started(state)
+
+        self.assertEqual(len(evaluated), 2)
+        self.assertTrue(all('name = "summon-example"' in code for code in evaluated))
 
 
 if __name__ == "__main__":
