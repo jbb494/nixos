@@ -8,13 +8,22 @@
   llvm,
   makeWrapper,
   pkg-config,
+  runCommand,
   freetype,
   glibc,
   libGL,
   xorg,
+  xz,
   zenity,
 }:
 
+let
+  glibcSource = runCommand "glibc-${glibc.version}-source" { nativeBuildInputs = [ xz ]; } ''
+    mkdir -p $out
+    tar -xJf ${glibc.src} --strip-components=1 -C $out
+    cp -a ${glibc.debug}/src/overlay/glibc-${glibc.version}/. $out/
+  '';
+in
 stdenv.mkDerivation rec {
   pname = "raddebugger";
   version = "0.9.29-alpha";
@@ -80,7 +89,8 @@ EOF
     # raddbg shells out to zenity for message boxes and file dialogs.
     wrapProgram $out/bin/raddbg \
       --prefix PATH : ${lib.makeBinPath [ zenity ]} \
-      --prefix NIX_DEBUG_INFO_DIRS : ${glibc.debug}/lib/debug
+      --prefix NIX_DEBUG_INFO_DIRS : ${glibc.debug}/lib/debug \
+      --set RADDBG_GLIBC_SOURCE ${glibcSource}
     runHook postInstall
   '';
 
@@ -91,4 +101,6 @@ EOF
     platforms = [ "x86_64-linux" ];
     mainProgram = "raddbg";
   };
+
+  passthru = { inherit glibcSource; };
 }
