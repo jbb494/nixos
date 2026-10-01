@@ -513,6 +513,17 @@ const setLayerWindowVisible = (window: Gtk.Widget, visible: boolean) => {
   }
 };
 
+type Subscribable<T> = {
+  subscribe: (callback: (value: T) => void) => () => void;
+};
+
+// Monitor hotplug destroys and recreates these windows. Disconnect callbacks
+// first so a later popup toggle cannot remap a disposed window as a toplevel.
+const subscribeUntilDestroyed = <T,>(window: Gtk.Widget, source: Subscribable<T>, callback: (value: T) => void) => {
+  const unsubscribe = source.subscribe(callback);
+  window.connect('destroy', unsubscribe);
+};
+
 const openRollnrollMonitorValue = () => {
   const value = openRollnrollMonitor.get();
   return typeof value === 'number' ? value : value?.monitor ?? null;
@@ -647,13 +658,13 @@ const ClickCatcher = (monitor: number) => (
         setLayerWindowVisible(self, openAudioPosition.get()?.monitor === monitor || openBluetoothPosition.get()?.monitor === monitor || openEvePosition.get()?.monitor === monitor || openMediaPosition.get()?.monitor === monitor || openNetworkPosition.get()?.monitor === monitor || openOpencodePosition.get()?.monitor === monitor || openRollnrollMonitorValue() === monitor);
       };
 
-      openAudioPosition.subscribe(update);
-      openBluetoothPosition.subscribe(update);
-      openEvePosition.subscribe(update);
-      openMediaPosition.subscribe(update);
-      openNetworkPosition.subscribe(update);
-      openOpencodePosition.subscribe(update);
-      openRollnrollMonitor.subscribe(update);
+      subscribeUntilDestroyed(self, openAudioPosition, update);
+      subscribeUntilDestroyed(self, openBluetoothPosition, update);
+      subscribeUntilDestroyed(self, openEvePosition, update);
+      subscribeUntilDestroyed(self, openMediaPosition, update);
+      subscribeUntilDestroyed(self, openNetworkPosition, update);
+      subscribeUntilDestroyed(self, openOpencodePosition, update);
+      subscribeUntilDestroyed(self, openRollnrollMonitor, update);
     }}
   >
     <eventbox hexpand vexpand>
@@ -1062,7 +1073,7 @@ const MediaDropdown = (monitor: number) => (
     }}
     visible={false}
     setup={(self) => {
-      openMediaPosition.subscribe((position) => {
+      subscribeUntilDestroyed(self, openMediaPosition, (position) => {
         self.marginRight = position?.marginRight ?? 10;
         const visible = position?.monitor === monitor;
         setLayerWindowVisible(self, visible);
@@ -1223,7 +1234,7 @@ const BluetoothDropdown = (monitor: number) => (
     }}
     visible={false}
     setup={(self) => {
-      openBluetoothPosition.subscribe((position) => {
+      subscribeUntilDestroyed(self, openBluetoothPosition, (position) => {
         self.marginRight = position?.marginRight ?? 10;
         const visible = position?.monitor === monitor;
         setLayerWindowVisible(self, visible);
@@ -1305,7 +1316,7 @@ const NetworkDropdown = (monitor: number) => (
     }}
     visible={false}
     setup={(self) => {
-      openNetworkPosition.subscribe((position) => {
+      subscribeUntilDestroyed(self, openNetworkPosition, (position) => {
         self.marginRight = position?.marginRight ?? 10;
         const visible = position?.monitor === monitor;
         setLayerWindowVisible(self, visible);
@@ -1417,7 +1428,7 @@ const AudioDropdown = (monitor: number) => (
     }}
     visible={false}
     setup={(self) => {
-      openAudioPosition.subscribe((position) => {
+      subscribeUntilDestroyed(self, openAudioPosition, (position) => {
         self.marginRight = position?.marginRight ?? 10;
         const visible = position?.monitor === monitor;
         setLayerWindowVisible(self, visible);
@@ -1536,7 +1547,7 @@ const OpencodeDropdown = (monitor: number) => (
     }}
     visible={false}
     setup={(self) => {
-      openOpencodePosition.subscribe((position) => {
+      subscribeUntilDestroyed(self, openOpencodePosition, (position) => {
         self.marginRight = position?.marginRight ?? 10;
         const visible = position?.monitor === monitor;
         setLayerWindowVisible(self, visible);
