@@ -40,6 +40,12 @@
   };
 
   services = {
+    # Give Hyprland a stable path for the GPU that owns the desktop's display.
+    # Otherwise Aquamarine picks the unused AMD iGPU as its primary renderer
+    # and copies every frame to NVIDIA, which breaks Chromium's DMA-BUF path.
+    udev.extraRules = ''
+      KERNEL=="card*", KERNELS=="0000:01:00.0", SUBSYSTEM=="drm", SUBSYSTEMS=="pci", SYMLINK+="dri/nvidia-dgpu"
+    '';
     xserver.videoDrivers = [ "nvidia" ];
   } // lib.optionalAttrs (inputs.eve-protocol-observatory.available or false) {
     eve-protocol-observatory = {
@@ -49,6 +55,7 @@
   };
 
   environment.sessionVariables = {
+    AQ_DRM_DEVICES = "/dev/dri/nvidia-dgpu";
     GBM_BACKEND = "nvidia-drm";
     LIBVA_DRIVER_NAME = "nvidia";
     __GLX_VENDOR_LIBRARY_NAME = "nvidia";
