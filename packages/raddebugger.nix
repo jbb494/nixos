@@ -3,6 +3,9 @@
   stdenv,
   clang,
   fetchFromGitHub,
+  libxfixes,
+  lld,
+  llvm,
   makeWrapper,
   pkg-config,
   freetype,
@@ -13,25 +16,26 @@
 
 stdenv.mkDerivation rec {
   pname = "raddebugger";
-  version = "0.9.28-alpha";
+  version = "0.9.29-alpha";
 
   src = fetchFromGitHub {
     owner = "EpicGames";
     repo = "raddebugger";
     rev = "v${version}";
-    hash = "sha256-hTX52/x1RauIaYlpv/+pPYqh68Xi7TKE7bibGkFGy3I=";
+    hash = "sha256-IQNicRWKdIamDeQU1RRceRR2QgoUlomQYoeCgepO10w=";
   };
-
-  patches = [ ./raddebugger-linux-modules.patch ];
 
   nativeBuildInputs = [
     clang
+    lld
+    llvm
     makeWrapper
     pkg-config
   ];
   buildInputs = [
     freetype
     libGL
+    libxfixes
     xorg.libX11
     xorg.libXext
   ];
