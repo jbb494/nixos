@@ -25,6 +25,10 @@ stdenv.mkDerivation rec {
     hash = "sha256-IQNicRWKdIamDeQU1RRceRR2QgoUlomQYoeCgepO10w=";
   };
 
+  # NixOS glibc omits the optional SystemTap loader probes used by RAD.
+  # Fall back to the standard ELF r_debug link map for module discovery.
+  patches = [ ./raddebugger-nixos-modules.patch ];
+
   nativeBuildInputs = [
     clang
     lld
