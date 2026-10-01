@@ -9,6 +9,7 @@
   makeWrapper,
   pkg-config,
   freetype,
+  glibc,
   libGL,
   xorg,
   zenity,
@@ -78,7 +79,8 @@ Keywords=debugger;c;c++;native;
 EOF
     # raddbg shells out to zenity for message boxes and file dialogs.
     wrapProgram $out/bin/raddbg \
-      --prefix PATH : ${lib.makeBinPath [ zenity ]}
+      --prefix PATH : ${lib.makeBinPath [ zenity ]} \
+      --prefix NIX_DEBUG_INFO_DIRS : ${glibc.debug}/lib/debug
     runHook postInstall
   '';
 

@@ -1,8 +1,85 @@
 diff --git a/src/linux/demon/linux_demon.c b/src/linux/demon/linux_demon.c
-index 2d5429d..9f74b6d 100644
+index 2d5429d..b625788 100644
 --- a/src/linux/demon/linux_demon.c
 +++ b/src/linux/demon/linux_demon.c
-@@ -1217,6 +1217,76 @@ lnx_dmn_push_event_unload_module(Arena *arena, DMN_EventList *events, LNX_DMN_Pr
+@@ -112,6 +112,7 @@ lnx_dmn_module_info_from_process_module(Arena *arena, pid_t pid, int memory_fd,
+     
+     //- rjf: unpack elf header info
+     Arch arch = Arch_Null;
++    ELF_MachineKind elf_machine = ELF_MachineKind_None;
+     U64 entry_point_voff = 0;
+     ELF_Type elf_type = ELF_Type_None;
+     U64 phdrs_off = 0;
+@@ -121,6 +122,7 @@ lnx_dmn_module_info_from_process_module(Arena *arena, pid_t pid, int memory_fd,
+     U64 shdrs_entry_size = 0;
+     U64 shdrs_count = 0;
+     U64 shdrs_strings_idx = 0;
++    String8 gnu_build_id = {0};
+     {
+       // rjf: read ehdr
+       ELF_Hdr64 ehdr = {0};
+@@ -156,6 +158,7 @@ lnx_dmn_module_info_from_process_module(Arena *arena, pid_t pid, int memory_fd,
+       
+       // rjf: unpack ehdr
+       arch               = arch_from_elf_machine(ehdr.e_machine);
++      elf_machine        = ehdr.e_machine;
+       entry_point_voff   = ehdr.e_entry - base_vaddr;
+       elf_type           = ehdr.e_type;
+       phdrs_off          = ehdr.e_phoff;
+@@ -216,6 +219,22 @@ lnx_dmn_module_info_from_process_module(Arena *arena, pid_t pid, int memory_fd,
+         {
+           eh_frame_header_vaddr_range = r1u64(module_rebase + phdr.p_vaddr, module_rebase + phdr.p_vaddr + phdr.p_memsz);
+         }
++        if(phdr.p_type == ELF_PType_Note)
++        {
++          String8 raw_note = str8(push_array(scratch.arena, U8, phdr.p_filesz), phdr.p_filesz);
++          lnx_dmn_read(memory_fd, r1u64(module_rebase + phdr.p_vaddr,
++                                        module_rebase + phdr.p_vaddr + phdr.p_filesz), raw_note.str);
++          ELF_NoteList notes = elf_parse_note(scratch.arena, raw_note, elf_sig_maybe[ELF_Identifier_Class], elf_machine);
++          for(ELF_NoteNode *note = notes.first; note != 0; note = note->next)
++          {
++            if(note->v.type == GNU_NoteType_BuildId &&
++               str8_match(note->v.owner, s("GNU"), StringMatchFlag_CaseInsensitive))
++            {
++              gnu_build_id = note->v.desc;
++              break;
++            }
++          }
++        }
+       }
+     }
+     
+@@ -322,6 +341,29 @@ lnx_dmn_module_info_from_process_module(Arena *arena, pid_t pid, int memory_fd,
+     
+     //- rjf: decide on debug info key info
+     String8 debug_info_path = module_path;
++    char *nix_debug_info_dirs_cstring = getenv("NIX_DEBUG_INFO_DIRS");
++    if(gnu_build_id.size >= 2 && nix_debug_info_dirs_cstring != 0)
++    {
++      String8List build_id_parts = {0};
++      for EachIndex(idx, gnu_build_id.size)
++      {
++        str8_list_pushf(scratch.arena, &build_id_parts, "%02x", gnu_build_id.str[idx]);
++      }
++      String8 build_id = str8_list_join(scratch.arena, &build_id_parts, 0);
++      String8 debug_info_dirs = str8_cstring(nix_debug_info_dirs_cstring);
++      String8List dirs = str8_split(scratch.arena, debug_info_dirs, (U8 *)":", 1, 0);
++      for EachNode(dir, String8Node, dirs.first)
++      {
++        String8 candidate = str8f(scratch.arena, "%S/.build-id/%S/%S.debug",
++                                  dir->string, str8_prefix(build_id, 2), str8_skip(build_id, 2));
++        FileProperties props = properties_from_file_path(candidate);
++        if(props.modified != 0 && props.size != 0)
++        {
++          debug_info_path = str8_copy(arena, candidate);
++          break;
++        }
++      }
++    }
+     Guid debug_info_guid = {0};
+     U64 debug_info_timestamp = 0;
+     U64 debug_info_age = 0;
+@@ -1217,6 +1259,76 @@ lnx_dmn_push_event_unload_module(Arena *arena, DMN_EventList *events, LNX_DMN_Pr
    e->module  = lnx_dmn_handle_from_module(module);
  }
  
@@ -79,7 +156,7 @@ index 2d5429d..9f74b6d 100644
  ////////////////////////////////
  //~ rjf: @dmn_os_hooks Main Layer Initialization (Implemented Per-OS)
  
-@@ -1838,6 +1908,12 @@ dmn_ctrl_run(Arena *arena, DMN_CtrlCtx *ctx, DMN_RunCtrls *ctrls)
+@@ -1838,6 +1950,12 @@ dmn_ctrl_run(Arena *arena, DMN_CtrlCtx *ctx, DMN_RunCtrls *ctrls)
                    case SI_KERNEL:
                    case TRAP_BRKPT:
                    {
