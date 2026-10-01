@@ -1113,21 +1113,25 @@ const MediaDropdown = (monitor: number) => (
   </window>
 );
 
-const toggleBluetoothDiscovery = () => {
-  if (!bluetooth.adapter) {
+const setBluetoothDiscovery = (active: boolean) => {
+  const adapter = bluetooth.adapter;
+
+  if (!adapter || !adapter.powered || adapter.discovering === active) {
     return;
   }
 
   try {
-    if (bluetooth.adapter.discovering) {
-      bluetooth.adapter.stop_discovery();
+    if (active) {
+      adapter.start_discovery();
     } else {
-      bluetooth.adapter.start_discovery();
+      adapter.stop_discovery();
     }
   } catch (error) {
-    console.error(`Failed to toggle Bluetooth discovery: ${error}`);
+    console.error(`Failed to ${active ? 'start' : 'stop'} Bluetooth discovery: ${error}`);
   }
 };
+
+const toggleBluetoothDiscovery = () => setBluetoothDiscovery(!bluetooth.adapter?.discovering);
 
 const toggleBluetoothDevice = (device: AstalBluetooth.Device) => {
   if (bluetoothBusyAddress.get() !== null) {
@@ -1281,7 +1285,7 @@ const BluetoothDropdown = (monitor: number) => (
                   }
 
                   if (sorted.length === 0) {
-                    return <label className="bluetooth-empty" halign={Gtk.Align.START} label="No devices found" />;
+                    return <label className="bluetooth-empty" halign={Gtk.Align.START} label={bind(adapter, 'discovering').as((discovering) => (discovering ? 'Scanning for devices...' : 'No devices found'))} />;
                   }
 
                   return sorted.map((device) => <BluetoothDeviceRow device={device} />);
@@ -1736,6 +1740,10 @@ App.start({
   instanceName: 'jbellavista-shell',
   main: () => {
     App.apply_css(`${style}\n${rollnrollCss}\n${eveCss}`, true);
+
+    // BlueZ only exposes unpaired nearby devices while discovery is active.
+    // Keep the dropdown accurate without requiring a manual refresh first.
+    openBluetoothPosition.subscribe((position) => setBluetoothDiscovery(position !== null));
 
     const display = Gdk.Display.get_default();
 
