@@ -1526,6 +1526,11 @@ in
       share = "disabled";
       autoupdate = false;
       model = "openai/gpt-5.6-sol";
+      providers.openai.models."gpt-5.6-sol".limit = {
+        context = 1000000;
+        input = 872000;
+        output = 128000;
+      };
     } // lib.optionalAttrs opencodeLinearMcp {
       # Linear MCP is host-specific; enabled per host via extraSpecialArgs.
       mcp.servers = {
