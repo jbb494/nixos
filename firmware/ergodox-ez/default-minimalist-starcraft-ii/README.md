@@ -85,18 +85,20 @@ Physical `1` through `5` operate unit groups normally:
 - `1`–`5`: select unit groups 1–5
 - Thumb Ctrl + `1`–`5`: replace unit groups 1–5
 
-Two dedicated keys provide a second group bank without moving the mouse hand
+Three dedicated keys provide a second group bank without moving the mouse hand
 or pressing multiple thumb modifiers:
 
 - Hold the normal left Enter thumb position and press `1`–`5` to select
   groups `6`, `7`, `8`, `9`, and `0`.
-- Hold the lower physical Backslash position and press `1`–`5` to replace
+- Hold the lower physical Backslash position and press `1`–`5` to add to
+  groups `6`, `7`, `8`, `9`, and `0`.
+- Hold the upper physical Right Bracket position and press `1`–`5` to replace
   groups `6`, `7`, `8`, `9`, and `0`.
 
 The large thumb key is the frequently used **Building Select** action; the
-lower inner key is **Building Set**. The upper physical Right Bracket position
-is inert. Both building actions are momentary firmware layers and do not
-illuminate the layer indicators. A suggested assignment is:
+lower inner key is **Building Add**; and the less accessible upper inner key is
+**Building Set**. All three building actions are momentary firmware layers and
+do not illuminate the layer indicators. A suggested assignment is:
 
 ```text
 1–5                  Unit groups
@@ -108,7 +110,7 @@ Building Select + 5  Other technology building
 W                    Warp Gates
 ```
 
-There is no dedicated add-to-group action. Select the existing group, extend
-the selection with Shift, and replace the group using its set action. To add
-all visible objects of one type at once, hold the Ctrl+Shift thumb key and click
-one of them before replacing the group.
+With SC2's add-and-take-away control-group bindings, select new buildings and
+use Building Add plus their slot. Building Set is only needed to replace a
+group. To add every visible object of one type to the current selection, hold
+the Ctrl+Shift thumb key and click one of them.
