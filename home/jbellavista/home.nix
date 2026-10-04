@@ -958,6 +958,7 @@ in
       google-cloud-sdk
       gnupg
       grim
+      heroic
       jdk21
       jq
       kubectl
