@@ -1532,6 +1532,11 @@ in
         input = 872000;
         output = 128000;
       };
+      providers.openai.models."gpt-6.1-sol".limit = {
+        context = 1000000;
+        input = 872000;
+        output = 128000;
+      };
     } // lib.optionalAttrs opencodeLinearMcp {
       # Linear MCP is host-specific; enabled per host via extraSpecialArgs.
       mcp.servers = {
