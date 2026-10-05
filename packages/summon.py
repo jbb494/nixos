@@ -45,6 +45,12 @@ class PopupSpec:
     height_ratio: float
 
 
+@dataclass(frozen=True)
+class OpenTarget:
+    monitor: str
+    workspace: int | str
+
+
 @dataclass
 class PopupState:
     spec: PopupSpec
@@ -172,32 +178,63 @@ def lua_string(value: str) -> str:
     return "".join(output)
 
 
-def popup_target(monitors: Any, spec: PopupSpec) -> tuple[int | str, int, int]:
+def parse_open_target(value: Any) -> OpenTarget:
+    if not isinstance(value, dict) or set(value) != {"monitor", "workspace"}:
+        raise SummonError("Invalid popup target.")
+    monitor = require_string(value["monitor"], "Popup target monitor")
+    workspace = value["workspace"]
+    if isinstance(workspace, bool) or not isinstance(workspace, (int, str)):
+        raise SummonError("Popup target workspace must be an integer or string.")
+    if isinstance(workspace, int) and workspace <= 0:
+        raise SummonError("Popup target workspace must be positive.")
+    if isinstance(workspace, str) and not workspace.startswith("special:"):
+        raise SummonError("Popup target special workspace is invalid.")
+    return OpenTarget(monitor=monitor, workspace=workspace)
+
+
+def focused_open_target(monitors: Any) -> OpenTarget:
     if not isinstance(monitors, list):
         raise SummonError("Hyprland returned an invalid monitor list.")
     monitor = next((item for item in monitors if isinstance(item, dict) and item.get("focused") is True), None)
     if monitor is None:
         raise SummonError("Hyprland has no focused monitor.")
     try:
+        name = require_string(monitor["name"], "Focused monitor name")
+        active = monitor["activeWorkspace"]
+        special = monitor["specialWorkspace"]
+        workspace: int | str = special["name"] if int(special["id"]) != 0 else int(active["id"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise SummonError("Hyprland returned invalid focused-monitor data.") from error
+    if workspace == "" or (isinstance(workspace, int) and workspace <= 0):
+        raise SummonError("The focused monitor has no usable workspace.")
+    return OpenTarget(monitor=name, workspace=workspace)
+
+
+def popup_target(monitors: Any, spec: PopupSpec, target: OpenTarget | None = None) -> tuple[int | str, int, int]:
+    if not isinstance(monitors, list):
+        raise SummonError("Hyprland returned an invalid monitor list.")
+    if target is None:
+        target = focused_open_target(monitors)
+    monitor = next((item for item in monitors if isinstance(item, dict) and item.get("name") == target.monitor), None)
+    if monitor is None:
+        raise SummonError(f"Hyprland no longer has target monitor {target.monitor}.")
+    try:
         scale = float(monitor["scale"])
         monitor_width = float(monitor["width"])
         monitor_height = float(monitor["height"])
         transform = int(monitor.get("transform", 0))
         reserved = monitor["reserved"]
-        active = monitor["activeWorkspace"]
-        special = monitor["specialWorkspace"]
         if scale <= 0 or len(reserved) != 4:
             raise ValueError
         rotated = transform % 2 != 0
         usable_width = (monitor_height if rotated else monitor_width) / scale - float(reserved[0]) - float(reserved[2])
         usable_height = (monitor_width if rotated else monitor_height) / scale - float(reserved[1]) - float(reserved[3])
-        workspace: int | str = special["name"] if int(special["id"]) != 0 else int(active["id"])
     except (KeyError, TypeError, ValueError, IndexError) as error:
-        raise SummonError("Hyprland returned invalid focused-monitor data.") from error
-    if usable_width <= 0 or usable_height <= 0 or workspace == "":
-        raise SummonError("The focused monitor has no usable workspace.")
+        raise SummonError("Hyprland returned invalid target-monitor data.") from error
+    if usable_width <= 0 or usable_height <= 0:
+        raise SummonError("The target monitor has no usable area.")
     return (
-        workspace,
+        target.workspace,
         max(1, math.floor(min(spec.max_width, usable_width * spec.width_ratio))),
         max(1, math.floor(min(spec.max_height, usable_height * spec.height_ratio))),
     )
@@ -411,7 +448,7 @@ class PopupHost:
             raise SummonError(f"Popup {state.spec.identifier} window disappeared.")
         return address
 
-    async def open(self, identifier: str) -> None:
+    async def open(self, identifier: str, target: OpenTarget | None = None) -> None:
         state = self.states.get(identifier)
         if state is None:
             raise SummonError(f"Unknown popup: {identifier}")
@@ -422,7 +459,7 @@ class PopupHost:
             except TimeoutError as error:
                 raise SummonError(f"Timed out waiting for popup {identifier}.") from error
             address = await self.validate_window(state)
-            workspace, width, height = popup_target(await self.monitors(), state.spec)
+            workspace, width, height = popup_target(await self.monitors(), state.spec, target)
             await self.evaluate(focus_popup(state.spec, address, workspace, width, height))
 
     async def close(self, identifier: str) -> None:
@@ -478,20 +515,23 @@ async def handle_client(host: PopupHost, reader: asyncio.StreamReader, writer: a
         if not line or len(line) > MAX_MESSAGE_BYTES or not line.endswith(b"\n"):
             raise SummonError("Invalid control message.")
         request = json.loads(line)
-        if not isinstance(request, dict) or set(request) - {"action", "id"}:
+        if not isinstance(request, dict) or set(request) - {"action", "id", "target"}:
             raise SummonError("Invalid control request.")
         action = request.get("action")
         if action == "open":
             identifier = require_string(request.get("id"), "id")
-            await host.open(identifier)
+            target = parse_open_target(request["target"]) if "target" in request else None
+            await host.open(identifier, target)
             result: Any = {"id": identifier, "state": "open"}
         elif action == "close":
+            if "target" in request:
+                raise SummonError("close does not accept a target.")
             identifier = require_string(request.get("id"), "id")
             await host.close(identifier)
             result = {"id": identifier, "state": "closing"}
         elif action == "status":
-            if "id" in request:
-                raise SummonError("status does not accept an id.")
+            if "id" in request or "target" in request:
+                raise SummonError("status does not accept an id or target.")
             result = host.status()
         else:
             raise SummonError(f"Unknown control action: {action!r}")
@@ -551,10 +591,40 @@ async def run_daemon(config_path: Path) -> None:
             pass
 
 
+def capture_open_target() -> OpenTarget:
+    inherited_monitor = os.environ.get("SUMMON_TARGET_MONITOR")
+    inherited_workspace = os.environ.get("SUMMON_TARGET_WORKSPACE")
+    if inherited_monitor is not None or inherited_workspace is not None:
+        if inherited_monitor is None or inherited_workspace is None:
+            raise SummonError("The inherited popup target is incomplete.")
+        try:
+            workspace = json.loads(inherited_workspace)
+        except json.JSONDecodeError as error:
+            raise SummonError("The inherited popup target workspace is invalid.") from error
+        return parse_open_target({"monitor": inherited_monitor, "workspace": workspace})
+
+    try:
+        completed = subprocess.run(
+            ["hyprctl", "-j", "monitors"],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=2,
+        )
+        monitors = json.loads(completed.stdout)
+    except (OSError, subprocess.SubprocessError, json.JSONDecodeError) as error:
+        raise SummonError(f"Could not capture the focused workspace: {error}") from error
+    return focused_open_target(monitors)
+
+
 def request_daemon(action: str, identifier: str | None) -> Any:
     request = {"action": action}
     if identifier is not None:
         request["id"] = identifier
+    if action == "open":
+        target = capture_open_target()
+        request["target"] = {"monitor": target.monitor, "workspace": target.workspace}
     path = socket_path()
     started = False
     deadline = time.monotonic() + 4

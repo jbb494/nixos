@@ -68,6 +68,7 @@ class HyprlandTests(unittest.TestCase):
 
     def test_target_accounts_for_rotation_scale_and_panels(self):
         target = summon.popup_target([{
+            "name": "DP-1",
             "focused": True,
             "width": 1800,
             "height": 2880,
@@ -79,8 +80,61 @@ class HyprlandTests(unittest.TestCase):
         }], self.popup)
         self.assertEqual(target, (4, 1100, 714))
 
+    def test_captured_target_survives_focus_change(self):
+        monitors = [{
+            "name": "main",
+            "focused": True,
+            "width": 1920,
+            "height": 1080,
+            "scale": 1,
+            "transform": 0,
+            "reserved": [0, 0, 0, 0],
+            "activeWorkspace": {"id": 1, "name": "1"},
+            "specialWorkspace": {"id": 0, "name": ""},
+        }, {
+            "name": "side",
+            "focused": False,
+            "width": 2560,
+            "height": 1440,
+            "scale": 1,
+            "transform": 0,
+            "reserved": [0, 50, 0, 0],
+            "activeWorkspace": {"id": 7, "name": "7"},
+            "specialWorkspace": {"id": 0, "name": ""},
+        }]
+        captured = summon.OpenTarget(monitor="side", workspace=7)
+        target = summon.popup_target(monitors, self.popup, captured)
+        self.assertEqual(target, (7, 1100, 820))
+
+    def test_rejects_invalid_captured_target(self):
+        with self.assertRaisesRegex(summon.SummonError, "positive"):
+            summon.parse_open_target({"monitor": "DP-1", "workspace": -1})
+        with self.assertRaisesRegex(summon.SummonError, "special workspace"):
+            summon.parse_open_target({"monitor": "DP-1", "workspace": "ordinary"})
+
+    def test_launcher_target_takes_precedence(self):
+        environment = {
+            "SUMMON_TARGET_MONITOR": "eDP-1",
+            "SUMMON_TARGET_WORKSPACE": "1",
+        }
+        with mock.patch.dict(os.environ, environment, clear=False):
+            with mock.patch.object(summon.subprocess, "run") as run:
+                target = summon.capture_open_target()
+        self.assertEqual(target, summon.OpenTarget(monitor="eDP-1", workspace=1))
+        run.assert_not_called()
+
+    def test_launcher_target_preserves_special_workspace(self):
+        environment = {
+            "SUMMON_TARGET_MONITOR": "DP-1",
+            "SUMMON_TARGET_WORKSPACE": '"special:notes"',
+        }
+        with mock.patch.dict(os.environ, environment, clear=False):
+            target = summon.capture_open_target()
+        self.assertEqual(target.workspace, "special:notes")
+
     def test_active_special_workspace_is_preserved(self):
         target = summon.popup_target([{
+            "name": "DP-1",
             "focused": True,
             "width": 1920,
             "height": 1080,
@@ -123,6 +177,7 @@ class PopupHostTests(unittest.IsolatedAsyncioTestCase):
                 return self.returncode
 
         monitors = [{
+            "name": "DP-1",
             "focused": True,
             "width": 1920,
             "height": 1080,

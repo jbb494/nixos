@@ -58,6 +58,24 @@ let
     label = "Keyboard: normal";
     color = "a6e3a1";
   };
+  rofiLauncher = pkgs.writeShellApplication {
+    name = "rofi-launcher";
+    runtimeInputs = with pkgs; [ hyprland jq rofi ];
+    text = ''
+      # Preserve keyboard focus before Rofi's layer surface can make the
+      # pointer monitor look focused. Desktop entries launched by Rofi inherit
+      # these values, allowing Summon to target the original workspace.
+      if target="$(hyprctl -j activeworkspace 2>/dev/null)"; then
+        monitor="$(jq -r '.monitor // empty' <<<"$target")"
+        workspace="$(jq -c 'if (.id // 0) > 0 then .id else .name end' <<<"$target")"
+        if [[ -n "$monitor" && "$workspace" != '""' && "$workspace" != "null" ]]; then
+          export SUMMON_TARGET_MONITOR="$monitor"
+          export SUMMON_TARGET_WORKSPACE="$workspace"
+        fi
+      fi
+      exec rofi -show drun
+    '';
+  };
   keyboardGamingMode = keyboardMode {
     name = "keyboard-gaming-mode";
     globalLayout = "us,us";
@@ -256,7 +274,7 @@ in
 
       bind = [
         (mkBind "${mod} + Return" ''hl.dsp.exec_cmd("${terminal}")'')
-        (mkBind "${mod} + D" ''hl.dsp.exec_cmd("rofi -show drun")'')
+        (mkBind "${mod} + D" ''hl.dsp.exec_cmd("${rofiLauncher}/bin/rofi-launcher")'')
         (mkBind "${mod} + SHIFT + Q" "hl.dsp.window.close()")
         (mkBind "${mod} + mouse:274" "hl.dsp.window.close()")
         (mkBind "${mod} + SHIFT + Space" ''hl.dsp.window.float({ action = "toggle" })'')
