@@ -14,7 +14,19 @@
     };
   };
 
-  nixpkgs.config.allowUnfree = true;
+  nixpkgs = {
+    config.allowUnfree = true;
+    overlays = [
+      # Backport NixOS/nixpkgs#572951 until the fix reaches nixos-unstable.
+      (_final: prev: {
+        typescript-language-server = prev.typescript-language-server.overrideAttrs (old: {
+          pnpmDeps = old.pnpmDeps.overrideAttrs (_: {
+            outputHash = "sha256-xR/EF60lVBsITKgH7wCM2wHM46PFQevD51KfCENSUH4=";
+          });
+        });
+      })
+    ];
+  };
 
   time.timeZone = "Europe/Madrid";
   i18n.defaultLocale = "en_US.UTF-8";
