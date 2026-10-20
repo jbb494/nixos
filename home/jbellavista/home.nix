@@ -1537,9 +1537,10 @@ in
         input = 872000;
         output = 128000;
       };
+      # Compact around 600k: long contexts cost more per turn and degrade attention.
       providers.openai.models."gpt-6-astra".limit = {
-        context = 1000000;
-        input = 872000;
+        context = 728000;
+        input = 600000;
         output = 128000;
       };
     } // lib.optionalAttrs opencodeLinearMcp {
