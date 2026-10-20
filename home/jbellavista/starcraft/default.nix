@@ -9,7 +9,14 @@ let
       # its external EGL platform modules. The same modules are exposed here.
       export __EGL_EXTERNAL_PLATFORM_CONFIG_DIRS=/run/opengl-driver/share/egl/egl_external_platform.d
 
+      # The native Wayland backend can leave Battle.net running without a
+      # visible outer window on NVIDIA. SDL keeps the nested window visible.
+      # Preserve its class so the Hyprland game-pane rules also match SDL.
+      export SDL_VIDEO_WAYLAND_WMCLASS=gamescope
+      export SDL_VIDEO_X11_WMCLASS=gamescope
+
       exec gamescope \
+        --backend sdl \
         --output-width 2560 \
         --output-height 1440 \
         --nested-width 2560 \
@@ -102,6 +109,11 @@ lib.mkIf (osConfig.networking.hostName == "desktop") {
 
       window_rule = [
         {
+          name = "starcraft-workspace";
+          match.class = "^(gamescope|steam_app_3129101785)$";
+          workspace = "1 silent";
+        }
+        {
           name = "battlenet-gamescope-window";
           match.class = "^gamescope$";
           match.title = "^Battle\\.net.*$";
@@ -114,7 +126,6 @@ lib.mkIf (osConfig.networking.hostName == "desktop") {
           match.class = "^gamescope$";
           match.title = "^StarCraft II$";
           tile = true;
-          fullscreen_state = "0 0";
           suppress_event = "fullscreen maximize fullscreenoutput";
           content = "game";
           border_size = 0;

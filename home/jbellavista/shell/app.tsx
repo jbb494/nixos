@@ -1600,15 +1600,29 @@ const OpencodeDropdown = (monitor: number) => (
 
 const Bar = (monitor: number) => {
   const hyprMonitor = hyprMonitorForGdk(monitor);
-  const visible = Variable.derive(
-    [bind(hyprland, 'clients'), bind(hyprMonitor, 'activeWorkspace')],
-    (clients, activeWorkspace) => !clients.some((client) => (
+  const visible = Variable(true);
+  const updateVisible = () => {
+    visible.set(!hyprland.clients.some((client) => (
       client.class === starcraftGamescopeClass
       && client.title === 'StarCraft II'
-      && client.workspace?.id === activeWorkspace?.id
+      && client.workspace?.id === hyprMonitor.activeWorkspace?.id
       && client.monitor?.name === hyprMonitor.name
-    )),
-  );
+    )));
+  };
+  let clientSignals: Array<() => void> = [];
+  const watchClients = () => {
+    clientSignals.forEach((disconnect) => disconnect());
+    clientSignals = hyprland.clients.flatMap((client) => (
+      ['class', 'title', 'workspace', 'monitor'].map((property) => {
+        const id = client.connect(`notify::${property}`, updateVisible);
+        return () => client.disconnect(id);
+      })
+    ));
+    updateVisible();
+  };
+  const clientsSignal = hyprland.connect('notify::clients', watchClients);
+  const workspaceSignal = hyprMonitor.connect('notify::active-workspace', updateVisible);
+  watchClients();
 
   return <window
     application={App}
@@ -1620,6 +1634,12 @@ const Bar = (monitor: number) => {
     anchor={Astal.WindowAnchor.TOP | Astal.WindowAnchor.LEFT | Astal.WindowAnchor.RIGHT}
     exclusivity={Astal.Exclusivity.EXCLUSIVE}
     visible={visible()}
+    onDestroy={() => {
+      clientSignals.forEach((disconnect) => disconnect());
+      hyprland.disconnect(clientsSignal);
+      hyprMonitor.disconnect(workspaceSignal);
+      visible.drop();
+    }}
   >
     <box className="bar-shell" hexpand>
       <centerbox
