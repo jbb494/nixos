@@ -17,12 +17,11 @@
   nixpkgs = {
     config.allowUnfree = true;
     overlays = [
-      # Backport NixOS/nixpkgs#572951 until the fix reaches nixos-unstable.
+      # nixpkgs' hyprwhspr-rs sets RUSTONIG_SYSTEM_LIBONIG but omits oniguruma
+      # from buildInputs; drop once fixed upstream.
       (_final: prev: {
-        typescript-language-server = prev.typescript-language-server.overrideAttrs (old: {
-          pnpmDeps = old.pnpmDeps.overrideAttrs (_: {
-            outputHash = "sha256-xR/EF60lVBsITKgH7wCM2wHM46PFQevD51KfCENSUH4=";
-          });
+        hyprwhspr-rs = prev.hyprwhspr-rs.overrideAttrs (old: {
+          buildInputs = (old.buildInputs or [ ]) ++ [ prev.oniguruma ];
         });
       })
     ];
@@ -41,7 +40,6 @@
       systemd-boot.enable = true;
       efi.canTouchEfiVariables = true;
     };
-    initrd.systemd.enable = true;
     tmp.cleanOnBoot = true;
   };
 

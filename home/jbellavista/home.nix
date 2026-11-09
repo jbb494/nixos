@@ -1,6 +1,7 @@
 { inputs
 , chromeForceEgl
 , config
+, masterPkgs
 , lib
 , opencodeLinearMcp
 , opencodePersonalProfile
@@ -946,7 +947,7 @@ in
       clang
       cmake
       delta
-      discord
+      masterPkgs.discord
       docker-compose
       ffmpeg
       gdb
@@ -1383,6 +1384,7 @@ in
       package = pkgs.adwaita-icon-theme;
     };
     gtk3.extraConfig.gtk-application-prefer-dark-theme = 1;
+    gtk4.theme = null;
     gtk4.extraConfig.gtk-application-prefer-dark-theme = 1;
   };
 

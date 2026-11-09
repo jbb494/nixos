@@ -91,6 +91,7 @@ let
   eveShellModule = if eveAvailable then inputs.eve-protocol-observatory.ags.shellModule.${pkgs.system} else null;
   jbellavista-shell = pkgs.callPackage ../../packages/jbellavista-shell.nix {
     inherit eveRuntimePackages eveShellModule rollnrollShellModule rollnrollRuntimePackages;
+    inherit (inputs.nixpkgs-ags.legacyPackages.${pkgs.stdenv.hostPlatform.system}) ags astal networkmanager;
   };
   mod = "SUPER";
   # Descriptors for hl.bind(keys, dispatcher[, flags]) calls in the generated

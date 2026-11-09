@@ -4,6 +4,8 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     nixpkgs-master.url = "github:NixOS/nixpkgs/master";
+    # Last nixpkgs revision that still packaged ags v2 / astal (the bar uses the ags v2 API).
+    nixpkgs-ags.url = "github:NixOS/nixpkgs/7fd4004d0511991fff3a0524856a9be09e28c5f0";
 
     disko = {
       url = "github:nix-community/disko/latest";
@@ -44,6 +46,7 @@
         inherit system;
         config.allowUnfree = true;
       };
+      agsPkgs = inputs.nixpkgs-ags.legacyPackages.${system};
       xkeyboardConfigErgodox = pkgs.callPackage ./packages/xkeyboard-config-ergodox.nix { };
       eveAvailable = inputs.eve-protocol-observatory.available or false;
       eveRuntimePackages = if eveAvailable then inputs.eve-protocol-observatory.ags.packages.${system} else [ ];
@@ -103,6 +106,7 @@
         jbellavista-shell = pkgs.callPackage ./packages/jbellavista-shell.nix {
           rollnrollShellModule = inputs.rollnroll-devtools.shellModules.ags.rollnroll or null;
           inherit eveRuntimePackages eveShellModule;
+          inherit (agsPkgs) ags astal networkmanager;
         };
         opencode2 = pkgs.callPackage ./packages/opencode2.nix { };
         raddebugger = pkgs.callPackage ./packages/raddebugger.nix { };
