@@ -201,8 +201,9 @@ def focused_open_target(monitors: Any) -> OpenTarget:
     try:
         name = require_string(monitor["name"], "Focused monitor name")
         active = monitor["activeWorkspace"]
-        special = monitor["specialWorkspace"]
-        workspace: int | str = special["name"] if int(special["id"]) != 0 else int(active["id"])
+        # Hyprland 0.57 omits specialWorkspace.id when none is open, so key off the name.
+        special_name = monitor["specialWorkspace"]["name"]
+        workspace: int | str = require_string(special_name, "Special workspace name") if special_name else int(active["id"])
     except (KeyError, TypeError, ValueError) as error:
         raise SummonError("Hyprland returned invalid focused-monitor data.") from error
     if workspace == "" or (isinstance(workspace, int) and workspace <= 0):

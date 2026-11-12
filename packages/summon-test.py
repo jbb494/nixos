@@ -80,6 +80,15 @@ class HyprlandTests(unittest.TestCase):
         }], self.popup)
         self.assertEqual(target, (4, 1100, 714))
 
+    def test_popup_target_accepts_special_workspace_without_id(self):
+        target = summon.focused_open_target([{
+            "name": "DP-1",
+            "focused": True,
+            "activeWorkspace": {"id": 2, "name": "2"},
+            "specialWorkspace": {"address": "", "type": "", "name": ""},
+        }])
+        self.assertEqual(target, summon.OpenTarget(monitor="DP-1", workspace=2))
+
     def test_captured_target_survives_focus_change(self):
         monitors = [{
             "name": "main",
