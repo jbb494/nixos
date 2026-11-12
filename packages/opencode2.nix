@@ -6,17 +6,23 @@
 , ripgrep
 , wayland
 , xorg
+, npmMeta
 ,
 }:
 
+let
+  meta' = builtins.fromJSON (builtins.readFile npmMeta);
+in
+
 stdenv.mkDerivation rec {
   pname = "opencode2";
-  # Stable V2 binary from the @opencode npm scope.
-  version = "2.0.21";
+  # Stable V2 binary from the @opencode npm scope, pinned via the
+  # `opencode2-npm` flake input (bump with `nix flake update opencode2-npm`).
+  version = meta'.version;
 
   src = fetchurl {
-    url = "https://registry.npmjs.org/@opencode/cli-linux-x64/-/cli-linux-x64-${version}.tgz";
-    hash = "sha512-intPGPRrEoZk+5Qq2dzYcq3Wv07vWvQrv56WieurupI9jGJSEAfT4a9Pi6YMW4tEW6SapAds/95K0egVS2YwiA==";
+    url = meta'.dist.tarball;
+    hash = meta'.dist.integrity;
   };
 
   nativeBuildInputs = [

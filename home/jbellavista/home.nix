@@ -944,6 +944,7 @@ in
       bun
       caddy
       claude-code
+      inputs.claude-desktop.packages.${pkgs.stdenv.hostPlatform.system}.default
       clang
       cmake
       delta

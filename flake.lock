@@ -1,5 +1,25 @@
 {
   "nodes": {
+    "claude-desktop": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1794378251,
+        "narHash": "sha256-+tWx76PykOrIXbseE4AjzUhVE23nG9UY2B4bry/FDA8=",
+        "owner": "danielbodart",
+        "repo": "claude-desktop",
+        "rev": "ba50d1bf33b6f68042fa15f08b2c4cf2334b3b77",
+        "type": "github"
+      },
+      "original": {
+        "owner": "danielbodart",
+        "repo": "claude-desktop",
+        "type": "github"
+      }
+    },
     "crane": {
       "locked": {
         "lastModified": 1790899423,
@@ -176,6 +196,18 @@
         "type": "github"
       }
     },
+    "opencode2-npm": {
+      "flake": false,
+      "locked": {
+        "narHash": "sha256-qj6CxK0ePnfcZWkjwdyHhFnk8mQ6OjYgEJAJa+piA8w=",
+        "type": "file",
+        "url": "https://registry.npmjs.org/@opencode/cli-linux-x64/latest"
+      },
+      "original": {
+        "type": "file",
+        "url": "https://registry.npmjs.org/@opencode/cli-linux-x64/latest"
+      }
+    },
     "pre-commit": {
       "inputs": {
         "flake-compat": "flake-compat",
@@ -211,6 +243,7 @@
     },
     "root": {
       "inputs": {
+        "claude-desktop": "claude-desktop",
         "disko": "disko",
         "eve-protocol-observatory": "eve-protocol-observatory",
         "home-manager": "home-manager",
@@ -219,6 +252,7 @@
         "nixpkgs-ags": "nixpkgs-ags",
         "nixpkgs-master": "nixpkgs-master",
         "nvim-config": "nvim-config",
+        "opencode2-npm": "opencode2-npm",
         "rollnroll-devtools": "rollnroll-devtools"
       }
     },

@@ -33,6 +33,19 @@
     };
 
     rollnroll-devtools.url = "path:./stubs/rollnroll-devtools";
+
+    # Claude Desktop: Anthropic's official Linux build (their signed apt repo), packaged and kept current by this flake.
+    claude-desktop = {
+      url = "github:danielbodart/claude-desktop";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    # npm metadata for the newest stable opencode v2 binary. `nix flake update`
+    # re-locks it; packages/opencode2.nix reads version + integrity from it.
+    opencode2-npm = {
+      url = "file+https://registry.npmjs.org/@opencode/cli-linux-x64/latest";
+      flake = false;
+    };
   };
 
   outputs = inputs@{ self, nixpkgs, disko, home-manager, ... }:
@@ -108,7 +121,7 @@
           inherit eveRuntimePackages eveShellModule;
           inherit (agsPkgs) ags astal networkmanager;
         };
-        opencode2 = pkgs.callPackage ./packages/opencode2.nix { };
+        opencode2 = pkgs.callPackage ./packages/opencode2.nix { npmMeta = inputs.opencode2-npm; };
         raddebugger = pkgs.callPackage ./packages/raddebugger.nix { };
         install-evo15 = pkgs.callPackage ./apps/install-evo15.nix {
           diskoPackage = disko.packages.${system}.disko;
