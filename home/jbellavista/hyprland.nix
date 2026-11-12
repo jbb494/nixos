@@ -176,6 +176,11 @@ in
           force_default_wallpaper = 0;
         };
 
+        # Don't flip the monitor into HDR when a fullscreen app (e.g. HDR
+        # YouTube in Chrome) asks for it: each flip is a modeset that blanks
+        # the screen for a few seconds.
+        render.cm_auto_hdr = 0;
+
         general = {
           gaps_in = 4;
           gaps_out = 8;
