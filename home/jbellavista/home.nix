@@ -943,7 +943,7 @@ in
       brightnessctl
       bun
       caddy
-      claude-code
+      masterPkgs.claude-code # nixos-unstable lags; master tracks releases faster
       inputs.claude-desktop.packages.${pkgs.stdenv.hostPlatform.system}.default
       clang
       cmake
