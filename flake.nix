@@ -123,6 +123,7 @@
         };
         opencode2 = pkgs.callPackage ./packages/opencode2.nix { npmMeta = inputs.opencode2-npm; };
         raddebugger = pkgs.callPackage ./packages/raddebugger.nix { };
+        clean-cam = pkgs.callPackage ./packages/clean-cam.nix { };
         install-evo15 = pkgs.callPackage ./apps/install-evo15.nix {
           diskoPackage = disko.packages.${system}.disko;
           nixosInstallTools = pkgs.nixos-install-tools;

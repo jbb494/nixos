@@ -1021,6 +1021,25 @@ in
   };
 
   systemd.user.services = {
+    # Feeds the "Clean Cam" v4l2loopback device (/dev/video10) with the webcam
+    # after automatic lighting correction. The real camera (and its LED) is only
+    # on while some app (Discord, ...) has Clean Cam open.
+    clean-cam =
+      let cleanCam = pkgs.callPackage ../../packages/clean-cam.nix { };
+      in {
+        Unit = {
+          Description = "Clean Cam virtual webcam (lighting correction)";
+          X-Restart-Triggers = [ "${cleanCam}" ];
+        };
+        Service = {
+          ExecStart = "${cleanCam}/bin/clean-cam serve --input /dev/video0 --output /dev/video10";
+          Restart = "always";
+          RestartSec = 3;
+          Nice = 5;
+        };
+        Install.WantedBy = [ "default.target" ];
+      };
+
     opencode-web = opencodeWebService { port = 4096; };
     opencode-web-personal = opencodeWebService {
       port = 4097;

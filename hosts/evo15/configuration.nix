@@ -1,4 +1,5 @@
-{ inputs
+{ config
+, inputs
 , masterPkgs
 , pkgs
 , ...
@@ -21,13 +22,20 @@
     # Default LTS kernel series (deliberately not linuxPackages_latest).
     kernelPackages = pkgs.linuxPackages;
     kernelParams = [ "amd_pstate=active" ];
+
+    # "Clean Cam": virtual webcam fed by the clean-cam user service (lighting fix).
+    # exclusive_caps=1 is required for Chromium/Electron apps (Discord) to list it.
+    extraModulePackages = [ config.boot.kernelPackages.v4l2loopback ];
+    kernelModules = [ "v4l2loopback" ];
+    extraModprobeConfig = ''
+      options v4l2loopback devices=1 video_nr=10 card_label="Clean Cam" exclusive_caps=1
+    '';
   };
 
   hardware.cpu.amd.updateMicrocode = true;
 
-  services.udev.extraRules = ''
-    ACTION=="add|change", SUBSYSTEM=="video4linux", ATTR{name}=="FHD WebCam: FHD WebCam", ATTR{index}=="0", ATTRS{idVendor}=="2b7e", ATTRS{idProduct}=="c906", RUN+="${pkgs.v4l-utils}/bin/v4l2-ctl --device=%N --set-ctrl=brightness=7,contrast=54,gamma=325,gain=82,sharpness=52,backlight_compensation=2"
-  '';
+  # The FHD WebCam's controls are set by clean-cam when it opens the camera
+  # (neutral, highlight-friendly values); no udev override any more.
 
   services.xserver.videoDrivers = [ "amdgpu" ];
 
