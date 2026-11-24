@@ -5,6 +5,9 @@
 , ...
 }:
 
+let
+  cliproxyKeys = "/var/lib/cliproxyapi-keys";
+in
 {
   imports = [
     ./hardware-configuration.nix
@@ -38,6 +41,81 @@
   # (neutral, highlight-friendly values); no udev override any more.
 
   services.xserver.videoDrivers = [ "amdgpu" ];
+
+  # Second person on this laptop, same Linux user: `claude-joan1` runs Claude
+  # Code with its own login, settings and history in ~/.claude-joan1.
+  environment.systemPackages = [
+    (pkgs.writeShellApplication {
+      name = "claude-joan1";
+      text = ''
+        export CLAUDE_CONFIG_DIR="$HOME/.claude-joan1"
+        exec ${masterPkgs.claude-code}/bin/claude "$@"
+      '';
+    })
+
+    # `claude-hub`: same ~/.claude (memory, MCP, settings) but talks to Anthropic
+    # through the local CLIProxyAPI below instead of its own claude.ai login.
+    (pkgs.writeShellApplication {
+      name = "claude-hub";
+      text = ''
+        export ANTHROPIC_BASE_URL="http://127.0.0.1:${toString config.services.cliproxyapi.settings.server.port}"
+        ANTHROPIC_AUTH_TOKEN="$(cat ${cliproxyKeys}/api-key)"
+        export ANTHROPIC_AUTH_TOKEN
+        # A custom base URL drops the cache to 5 minutes; subscriptions get 1 hour.
+        export CLAUDE_CODE_PROMPT_CACHE_TTL="1h"
+        exec ${masterPkgs.claude-code}/bin/claude "$@"
+      '';
+    })
+    config.services.cliproxyapi.package
+  ];
+
+  # CLIProxyAPI: holds the Claude subscription login and serves it as an API on
+  # localhost only. Logins live in /var/lib/cliproxyapi; add one with
+  # `sudo -u cliproxyapi cliproxyapi -config /var/lib/cliproxyapi/config.yaml -claude-login`.
+  services.cliproxyapi = {
+    enable = true;
+    settings = {
+      config-version = 8;
+      server = {
+        host = "127.0.0.1";
+        port = 8317;
+        trusted-proxies = [ "127.0.0.1" "::1" ];
+      };
+      management.secret-key._secret = "${cliproxyKeys}/management-key";
+      access.api-keys = [ { _secret = "${cliproxyKeys}/api-key"; } ];
+      routing = {
+        strategy = "round-robin";
+        # Keep a conversation on one account so its prompt cache is reused.
+        session-affinity = true;
+        session-affinity-ttl = "1h";
+        retry = {
+          request-retry = 3;
+          max-retry-interval = 30;
+        };
+      };
+    };
+  };
+
+  # Random access + management keys, made once and kept out of Git. Readable by
+  # jbellavista (for claude-hub); the service reads them as root via LoadCredential.
+  systemd.services.cliproxyapi-keys = {
+    description = "Generate CLIProxyAPI keys";
+    wantedBy = [ "cliproxyapi.service" ];
+    before = [ "cliproxyapi.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    script = ''
+      install -d -m 0700 -o jbellavista -g users ${cliproxyKeys}
+      for f in api-key management-key; do
+        if [ ! -s ${cliproxyKeys}/$f ]; then
+          (umask 0377; ${pkgs.openssl}/bin/openssl rand -hex 32 > ${cliproxyKeys}/$f)
+          chown jbellavista:users ${cliproxyKeys}/$f
+        fi
+      done
+    '';
+  };
 
   # Passwords are set interactively by the installer; keep secrets out of Git.
   users.mutableUsers = true;
