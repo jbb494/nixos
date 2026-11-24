@@ -42,6 +42,12 @@ in
 
   services.xserver.videoDrivers = [ "amdgpu" ];
 
+  # SSH by key only (Tailscale and sshd are already on via modules/system/base.nix).
+  services.openssh.settings = {
+    PasswordAuthentication = false;
+    KbdInteractiveAuthentication = false;
+  };
+
   # Second person on this laptop, same Linux user: `claude-joan1` runs Claude
   # Code with its own login, settings and history in ~/.claude-joan1.
   environment.systemPackages = [
@@ -121,6 +127,11 @@ in
   users.mutableUsers = true;
   users.users.jbellavista = {
     isNormalUser = true;
+    # TEMPORARY: the agents VM's key for the platform migration; remove when done.
+    # from= limits it to Tailscale addresses.
+    openssh.authorizedKeys.keys = [
+      ''from="100.64.0.0/10,fd7a:115c:a1e0::/48" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINH5NTBPuP+lb7O3ZJE3YO2VE1VT5qTAGTjSAZ7EMu/F platform@agents-vm (migration)''
+    ];
     description = "Joan Bellavista";
     shell = pkgs.zsh;
     extraGroups = [
