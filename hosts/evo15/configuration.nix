@@ -42,6 +42,9 @@ in
 
   services.xserver.videoDrivers = [ "amdgpu" ];
 
+  # T3 Code (desktop app, `t3`, `t3-hub`): no telemetry.
+  environment.sessionVariables.T3CODE_TELEMETRY_ENABLED = "false";
+
   # SSH by key only (Tailscale and sshd are already on via modules/system/base.nix).
   services.openssh.settings = {
     PasswordAuthentication = false;
@@ -75,6 +78,7 @@ in
 
     # T3 Code: GUI for coding agents. `t3-hub` starts it in the browser with the
     # same proxy settings, so the Claude Code sessions it spawns use CLIProxyAPI.
+    # Telemetry is off: see environment.sessionVariables.T3CODE_TELEMETRY_ENABLED.
     pkgs.t3code
     (pkgs.writeShellApplication {
       name = "t3-hub";
