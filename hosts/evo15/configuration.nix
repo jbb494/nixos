@@ -72,6 +72,21 @@ in
         exec ${masterPkgs.claude-code}/bin/claude "$@"
       '';
     })
+
+    # T3 Code: GUI for coding agents. `t3-hub` starts it in the browser with the
+    # same proxy settings, so the Claude Code sessions it spawns use CLIProxyAPI.
+    pkgs.t3code
+    (pkgs.writeShellApplication {
+      name = "t3-hub";
+      text = ''
+        export ANTHROPIC_BASE_URL="http://127.0.0.1:${toString config.services.cliproxyapi.settings.server.port}"
+        ANTHROPIC_AUTH_TOKEN="$(cat ${cliproxyKeys}/api-key)"
+        export ANTHROPIC_AUTH_TOKEN
+        export CLAUDE_CODE_PROMPT_CACHE_TTL="1h"
+        export PATH="${masterPkgs.claude-code}/bin:$PATH"
+        exec ${pkgs.t3code}/bin/t3 "$@"
+      '';
+    })
     config.services.cliproxyapi.package
   ];
 
