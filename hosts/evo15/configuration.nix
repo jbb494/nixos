@@ -52,13 +52,14 @@ in
     KbdInteractiveAuthentication = false;
   };
 
-  # Second person on this laptop, same Linux user: `claude-joan1` runs Claude
-  # Code with its own login, settings and history in ~/.claude-joan1.
+  # `claude-joan`: Claude Code on Joan's own claude.ai login, straight to Anthropic (not through CLIProxyAPI), with its
+  # own login, settings and history in ~/.claude-joan. Agents use it for what needs that login (Artifacts).
   environment.systemPackages = [
     (pkgs.writeShellApplication {
-      name = "claude-joan1";
+      name = "claude-joan";
       text = ''
-        export CLAUDE_CONFIG_DIR="$HOME/.claude-joan1"
+        unset ANTHROPIC_BASE_URL ANTHROPIC_AUTH_TOKEN ANTHROPIC_API_KEY
+        export CLAUDE_CONFIG_DIR="$HOME/.claude-joan"
         exec ${masterPkgs.claude-code}/bin/claude "$@"
       '';
     })
