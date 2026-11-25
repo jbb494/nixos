@@ -12,6 +12,7 @@ in
   imports = [
     ./hardware-configuration.nix
     ./disko.nix
+    ./nixos-switch.nix
     ../../modules/system/base.nix
     ../../modules/system/workstation.nix
     ../../modules/system/laptop.nix
