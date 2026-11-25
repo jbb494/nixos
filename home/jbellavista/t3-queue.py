@@ -22,6 +22,7 @@ bearer session cached under $XDG_STATE_HOME/t3-queue/token.
 
 import json
 import os
+import shlex
 import subprocess
 import sys
 import time
@@ -340,7 +341,9 @@ def cmd_lines():
 
 
 def cmd_select():
-    me = os.path.realpath(sys.argv[0])
+    # fzf runs these through sh; the script is a plain (non-executable) .py
+    # in the Nix store, so call it through this interpreter.
+    me = f"{shlex.quote(sys.executable)} -I {shlex.quote(os.path.realpath(__file__))}"
     try:
         refresh()
     except Exception as e:
