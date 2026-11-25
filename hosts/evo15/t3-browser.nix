@@ -16,12 +16,12 @@
     libdrm
     libxkbcommon
     systemd # libudev
-    xorg.libX11
-    xorg.libxcb
-    xorg.libXcomposite
-    xorg.libXdamage
-    xorg.libXext
-    xorg.libXfixes
-    xorg.libXrandr
+    libx11
+    libxcb
+    libxcomposite
+    libxdamage
+    libxext
+    libxfixes
+    libxrandr
   ]);
 }
