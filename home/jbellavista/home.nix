@@ -908,12 +908,12 @@ in
 
   programs.summon.enable = true;
   # "T3" in the Super+D launcher: the T3 threads the bar shows as waiting.
-  # Not preloaded, so the list is fresh on every open.
+  # Preloaded for an instant popup; the picker reloads itself live.
   programs.summon.entries.t3 = {
     command = [ "${lib.getExe t3-queue}" "select" ];
     windowClass = "com.jbellavista.T3Queue";
     title = "T3";
-    preload = false;
+    preload = true;
     geometry = {
       maxWidth = 1000;
       maxHeight = 600;

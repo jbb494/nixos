@@ -16,6 +16,7 @@ bearer session cached under $XDG_STATE_HOME/t3-queue/token.
 
 import json
 import os
+import shlex
 import subprocess
 import sys
 import time
@@ -294,15 +295,50 @@ def cmd_lines():
         print(line)
 
 
+def self_command(*args):
+    # fzf runs commands through sh; the script is a plain (non-executable)
+    # .py in the Nix store, so call it through this interpreter.
+    return " ".join(shlex.quote(x) for x in (sys.executable, "-I", os.path.realpath(__file__), *args))
+
+
 def cmd_select():
-    # Reads the queue `watch` keeps fresh, so opening needs no server call.
+    """fzf over the queue. The Summon popup preloads it hidden, so it must stay
+    current on its own: `fzf-watch` pushes a reload whenever the queue changes
+    (same trick as `tmux-projects oc-queue select`)."""
+    lines = self_command("lines")
+    watch = self_command("fzf-watch")
     r = subprocess.run(
-        ["fzf", "--ansi", "--delimiter", "\t", "--with-nth", "2", "--no-sort", "--layout", "reverse",
-         "--prompt", "T3> ", "--header", "enter: open"],
-        input="".join(line + "\n" for line in queue_lines()), stdout=subprocess.PIPE, text=True,
+        ["fzf", "--listen", "--ansi", "--delimiter", "\t", "--with-nth", "2", "--no-sort",
+         "--layout", "reverse", "--prompt", "T3> ", "--header", "enter: open",
+         "--bind", f"start:reload({lines})+execute-silent(nohup {watch} >/dev/null 2>&1 &)"],
+        stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, text=True,
     )
     if r.returncode == 0 and r.stdout.strip():
         cmd_goto(r.stdout.split("\t", 1)[0])
+
+
+def cmd_fzf_watch():
+    """Started by fzf (inherits $FZF_PORT): reloads the picker when the queue
+    file changes, exits when the picker is gone."""
+    port = os.environ.get("FZF_PORT")
+    if not port:
+        return
+    url = f"http://127.0.0.1:{port}"
+    reload = f"reload({self_command('lines')})".encode()
+    last = None
+    while True:
+        try:
+            urllib.request.urlopen(url, timeout=2).read()
+            try:
+                current = os.stat(QUEUE_FILE).st_mtime_ns
+            except FileNotFoundError:
+                current = 0
+            if current != last:
+                urllib.request.urlopen(urllib.request.Request(url, data=reload, method="POST"), timeout=2).read()
+                last = current
+        except (urllib.error.URLError, ConnectionError, OSError):
+            return
+        time.sleep(1)
 
 
 def main():
@@ -314,6 +350,8 @@ def main():
         print(json.dumps(snapshot(Client()), indent=1))
     elif cmd == "lines":
         cmd_lines()
+    elif cmd == "fzf-watch":
+        cmd_fzf_watch()
     elif cmd == "select":
         cmd_select()
     elif cmd == "goto" and len(args) == 2:
