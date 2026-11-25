@@ -10,11 +10,6 @@ A thread is waiting when it is top-level, not settled, not snoozed, and its
 last run finished, failed, or needs input. It leaves the queue once you
 settle it (Ctrl+Shift+S in T3, or dismiss here) and returns on new activity.
 
-Orchestrators are threads whose project folder holds an `.orchestrator`
-file, the marker `agent open <name> --orchestrator` creates, so new ones
-are picked up automatically. They only enter the queue when they need input or failed: settling a pinned thread would
-move it out of T3's Pinned section, so they are never asked to settle.
-
 Talks to the local T3 server's MCP endpoint with a 30-day "mcp-client"
 bearer session cached under $XDG_STATE_HOME/t3-queue/token.
 """
@@ -39,10 +34,7 @@ TOKEN_FILE = os.path.join(STATE_DIR, "token")
 QUEUE_FILE = os.path.join(
     os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"), "t3-done-queue.json"
 )
-ORCH_MARKER = ".orchestrator"
-ORCH_VIEW_FILE = os.path.join(os.path.dirname(QUEUE_FILE), "t3-orchestrators.json")
 WAITING_STATUSES = {"completed", "failed", "interrupted", "cancelled", "rolled_back", "waiting"}
-NEEDS_YOU_STATUSES = {"failed", "waiting"}
 # Bar widget vocabulary (shared with the opencode queue): idle | error | permission.
 BAR_STATUS = {"failed": "error", "waiting": "permission"}
 T3_WINDOW_CLASS = "com.t3tools.T3Code"
@@ -165,28 +157,18 @@ class Client:
         return items
 
 
-def is_orchestrator_root(root):
-    return bool(root) and os.path.exists(os.path.join(root, ORCH_MARKER))
-
-
 def snapshot(t3):
-    """Returns (queue, orchestrators).
-
-    queue: threads waiting for you, for the bar and the picker.
-    orchestrators: every thread marked as orchestrator, for the picker.
-    Orchestrators only enter the queue when they need you (input or failure),
-    never just for finishing, so they never have to be settled.
-    """
+    """Threads waiting for you, for the bar and the picker."""
     # Keep each entry's timestamp while its status is unchanged, so the bar
     # announces it once (T3 bumps updatedAt for unrelated reasons).
-    previous = {e["session"]: e for e in read_json(QUEUE_FILE) + read_json(ORCH_VIEW_FILE)}
-    project_list = t3.paged("t3_project_list", {}, "projects")
-    projects = {p["id"]: p["title"] for p in project_list}
-    orch_projects = {p["id"] for p in project_list if is_orchestrator_root(p.get("workspaceRoot"))}
+    previous = {e["session"]: e for e in read_json(QUEUE_FILE)}
+    projects = {p["id"]: p["title"] for p in t3.paged("t3_project_list", {}, "projects")}
     threads = t3.paged("t3_thread_list", {"allProjects": True}, "threads")
-    queue, orchs = [], []
+    queue = []
     for t in threads:
-        if t.get("parentThreadId"):
+        if t.get("parentThreadId") or t["settled"] or t["snoozed"]:
+            continue
+        if t["status"] not in WAITING_STATUSES:
             continue
         entry = {
             "session": t["threadId"],
@@ -197,28 +179,16 @@ def snapshot(t3):
             "project": projects.get(t["projectId"], ""),
             "ts": int(time.mktime(time.strptime(t["updatedAt"][:19], "%Y-%m-%dT%H:%M:%S"))),
             "source": "t3",
-            "settled": t["settled"],
-            "snoozed": t["snoozed"],
             "link": t["link"],
         }
         prev = previous.get(t["threadId"])
         if prev and prev.get("t3Status") == t["status"]:
             entry["ts"] = prev["ts"]
-        is_orch = t["projectId"] in orch_projects
-        if is_orch:
-            orchs.append(entry)
-        if t["snoozed"]:
-            continue
-        if is_orch:
-            if t["status"] in NEEDS_YOU_STATUSES:
-                queue.append(entry)
-        elif not t["settled"] and t["status"] in WAITING_STATUSES:
-            queue.append(entry)
+        queue.append(entry)
     # Needs-you first (input, then failures), then newest.
     rank = {"permission": 0, "error": 1, "idle": 2}
     queue.sort(key=lambda e: (rank[e["status"]], -e["ts"]))
-    orchs.sort(key=lambda e: e["title"].lower())
-    return queue, orchs
+    return queue
 
 
 def write_json(path, value):
@@ -244,9 +214,7 @@ def read_json(path):
 
 
 def refresh(t3=None):
-    queue, orchs = snapshot(t3 or Client())
-    write_json(QUEUE_FILE, queue)
-    write_json(ORCH_VIEW_FILE, orchs)
+    write_json(QUEUE_FILE, snapshot(t3 or Client()))
 
 
 def app_link(link):
@@ -255,7 +223,7 @@ def app_link(link):
 
 
 def find_link(thread_id):
-    for e in read_json(QUEUE_FILE) + read_json(ORCH_VIEW_FILE):
+    for e in read_json(QUEUE_FILE):
         if e["session"] == thread_id:
             return e["link"]
     for t in Client().paged("t3_thread_list", {"allProjects": True}, "threads"):
@@ -289,8 +257,6 @@ def focus_t3_window():
 
 
 def cmd_prune(thread_id):
-    if any(e["session"] == thread_id for e in read_json(ORCH_VIEW_FILE)):
-        return  # settling would drop it out of Pinned; orchestrators clear themselves
     t3 = Client()
     t3.call("t3_thread_organize", {"threadId": thread_id, "action": "settle"})
     write_json(QUEUE_FILE, [e for e in read_json(QUEUE_FILE) if e["session"] != thread_id])
@@ -345,8 +311,7 @@ def main():
     if cmd == "watch":
         cmd_watch(float(args[1]) if len(args) > 1 else 5)
     elif cmd == "list":
-        queue, orchs = snapshot(Client())
-        print(json.dumps({"queue": queue, "orchestrators": orchs}, indent=1))
+        print(json.dumps(snapshot(Client()), indent=1))
     elif cmd == "lines":
         cmd_lines()
     elif cmd == "select":
