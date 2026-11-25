@@ -13,6 +13,7 @@ in
     ./hardware-configuration.nix
     ./disko.nix
     ./nixos-switch.nix
+    ./t3-browser.nix
     ../../modules/system/base.nix
     ../../modules/system/workstation.nix
     ../../modules/system/laptop.nix
