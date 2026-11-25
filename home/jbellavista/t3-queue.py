@@ -10,9 +10,9 @@ A thread is waiting when it is top-level, not settled, not snoozed, and its
 last run finished, failed, or needs input. It leaves the queue once you
 settle it (Ctrl+Shift+S in T3, or dismiss here) and returns on new activity.
 
-Orchestrators are threads whose T3 title contains the tag "#orch" (rename
-in T3 with F2; the front office names new orchestrators with it). The tag
-is hidden in the bar and picker. They are listed first in the picker and only enter
+Orchestrators are threads whose project folder holds an `.orchestrator`
+file, the marker `agent open <name> --orchestrator` creates, so new ones
+are picked up automatically. They are listed first in the picker and only enter
 the queue when they need input or failed: settling a pinned thread would
 move it out of T3's Pinned section, so they are never asked to settle.
 
@@ -40,7 +40,7 @@ TOKEN_FILE = os.path.join(STATE_DIR, "token")
 QUEUE_FILE = os.path.join(
     os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"), "t3-done-queue.json"
 )
-ORCH_TAG = os.environ.get("T3_QUEUE_ORCH_TAG", "#orch")
+ORCH_MARKER = ".orchestrator"
 ORCH_VIEW_FILE = os.path.join(os.path.dirname(QUEUE_FILE), "t3-orchestrators.json")
 WAITING_STATUSES = {"completed", "failed", "interrupted", "cancelled", "rolled_back", "waiting"}
 NEEDS_YOU_STATUSES = {"failed", "waiting"}
@@ -166,12 +166,8 @@ class Client:
         return items
 
 
-def has_orch_tag(title):
-    return ORCH_TAG.lower() in title.lower().split()
-
-
-def strip_orch_tag(title):
-    return " ".join(w for w in title.split() if w.lower() != ORCH_TAG.lower())
+def is_orchestrator_root(root):
+    return bool(root) and os.path.exists(os.path.join(root, ORCH_MARKER))
 
 
 def snapshot(t3):
@@ -185,7 +181,9 @@ def snapshot(t3):
     # Keep each entry's timestamp while its status is unchanged, so the bar
     # announces it once (T3 bumps updatedAt for unrelated reasons).
     previous = {e["session"]: e for e in read_json(QUEUE_FILE) + read_json(ORCH_VIEW_FILE)}
-    projects = {p["id"]: p["title"] for p in t3.paged("t3_project_list", {}, "projects")}
+    project_list = t3.paged("t3_project_list", {}, "projects")
+    projects = {p["id"]: p["title"] for p in project_list}
+    orch_projects = {p["id"] for p in project_list if is_orchestrator_root(p.get("workspaceRoot"))}
     threads = t3.paged("t3_thread_list", {"allProjects": True}, "threads")
     queue, orchs = [], []
     for t in threads:
@@ -194,7 +192,7 @@ def snapshot(t3):
         entry = {
             "session": t["threadId"],
             "window": "-",
-            "title": strip_orch_tag(t["title"]),
+            "title": t["title"],
             "status": BAR_STATUS.get(t["status"], "idle"),
             "t3Status": t["status"],
             "project": projects.get(t["projectId"], ""),
@@ -205,7 +203,7 @@ def snapshot(t3):
         prev = previous.get(t["threadId"])
         if prev and prev.get("t3Status") == t["status"]:
             entry["ts"] = prev["ts"]
-        is_orch = has_orch_tag(t["title"])
+        is_orch = t["projectId"] in orch_projects
         if is_orch:
             orchs.append(entry)
         if t["snoozed"]:
