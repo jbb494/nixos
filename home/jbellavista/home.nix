@@ -173,7 +173,7 @@ let
   };
 
   # T3 Code threads waiting for you: feeds the shell bar's agent queue and an
-  # fzf picker (Super+T). See t3-queue.py.
+  # fzf picker ("T3" in the Super+D launcher). See t3-queue.py.
   t3-queue = pkgs.writeShellApplication {
     name = "t3-queue";
     runtimeInputs = with pkgs; [
@@ -907,6 +907,30 @@ in
   ] ++ summonModules;
 
   programs.summon.enable = true;
+  # "T3" in the Super+D launcher: orchestrators first, then T3 threads that
+  # are waiting for you. Not preloaded, so the list is fresh on every open.
+  programs.summon.entries.t3 = {
+    command = [ "${lib.getExe t3-queue}" "select" ];
+    windowClass = "com.jbellavista.T3Queue";
+    title = "T3";
+    preload = false;
+    geometry = {
+      maxWidth = 1000;
+      maxHeight = 600;
+      widthRatio = 0.6;
+      heightRatio = 0.5;
+    };
+    desktop = {
+      fileName = "t3-queue.desktop";
+      name = "T3";
+      genericName = "T3 Code threads";
+      comment = "Orchestrators and T3 threads waiting for you";
+      icon = "utilities-terminal";
+      categories = [ "Development" "Utility" ];
+      keywords = [ "t3" "threads" "agents" "orchestrators" "queue" ];
+    };
+  };
+
   programs.summon.entries.tms = {
     command = [ "${lib.getExe tmux-projects}" "select" ];
     windowClass = "com.jbellavista.TmuxProjects";
