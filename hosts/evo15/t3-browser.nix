@@ -11,6 +11,7 @@
     nspr
     dbus
     expat
+    alsa-lib # libasound: loaded at start (missing it, T3's launch failed though a shell's LD_LIBRARY_PATH had it)
     at-spi2-core # libatk-1.0, libatk-bridge-2.0, libatspi
     libgbm
     libdrm
