@@ -1583,7 +1583,7 @@ const OpencodeDropdown = (monitor: number) => (
               onClick={() => opencodeGoto(entry.session, entry.window, entry.source)}
             >
               <box>
-                <label className="opencode-entry-icon" label={entry.status === 'error' ? '󰀦' : entry.status === 'permission' ? '󰋗' : '󰗠'} />
+                <label className="opencode-entry-icon" label={entry.status === 'error' ? '󰀦' : entry.status === 'permission' ? '󰋗' : entry.status === 'working' ? '󰔟' : '󰗠'} />
                 <box vertical hexpand>
                   <label className="opencode-entry-title" halign={Gtk.Align.START} truncate label={entry.title || entry.session} />
                   <label className="opencode-entry-meta" halign={Gtk.Align.START} truncate label={entry.source === 't3' ? `T3 · ${entry.project ?? ''}` : `${entry.session}${entry.window && entry.window !== '-' ? ` · ${entry.window}` : ''}`} />

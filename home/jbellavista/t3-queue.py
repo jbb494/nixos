@@ -17,6 +17,7 @@ bearer session cached under $XDG_STATE_HOME/t3-queue/token.
 import json
 import os
 import shlex
+import sqlite3
 import subprocess
 import sys
 import time
@@ -35,9 +36,13 @@ TOKEN_FILE = os.path.join(STATE_DIR, "token")
 QUEUE_FILE = os.path.join(
     os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"), "t3-done-queue.json"
 )
-WAITING_STATUSES = {"completed", "failed", "interrupted", "cancelled", "rolled_back", "waiting"}
-# Bar widget vocabulary (shared with the opencode queue): idle | error | permission.
-BAR_STATUS = {"failed": "error", "waiting": "permission"}
+STATE_DB = os.path.join(T3_HOME, "userdata", "statev2.sqlite")
+# T3's sidebar: snoozed, then settled, then pinned, then Working (these
+# statuses), and every other thread is Active. The tray is Pinned + Active.
+WORKING_STATUSES = {"preparing", "queued", "starting", "running"}
+# Bar widget vocabulary (shared with the opencode queue): idle | error |
+# permission, plus working (only pinned threads show while running).
+BAR_STATUS = {"failed": "error", "waiting": "permission", **{s: "working" for s in WORKING_STATUSES}}
 T3_WINDOW_CLASS = "com.t3tools.T3Code"
 
 
@@ -158,6 +163,22 @@ class Client:
         return items
 
 
+def pinned_ids():
+    """Pinned threads: the MCP thread list doesn't say, T3's state DB does."""
+    try:
+        db = sqlite3.connect(f"file:{STATE_DB}?mode=ro", uri=True, timeout=2)
+        try:
+            rows = db.execute(
+                "select thread_id from projection_threads"
+                " where pinned_at is not null and deleted_at is null and archived_at is null"
+            ).fetchall()
+        finally:
+            db.close()
+    except sqlite3.Error:
+        return set()
+    return {r[0] for r in rows}
+
+
 def snapshot(t3):
     """Threads waiting for you, for the bar and the picker."""
     # Keep each entry's timestamp while its status is unchanged, so the bar
@@ -165,11 +186,12 @@ def snapshot(t3):
     previous = {e["session"]: e for e in read_json(QUEUE_FILE)}
     projects = {p["id"]: p["title"] for p in t3.paged("t3_project_list", {}, "projects")}
     threads = t3.paged("t3_thread_list", {"allProjects": True}, "threads")
+    pinned = pinned_ids()
     queue = []
     for t in threads:
         if t.get("parentThreadId") or t["settled"] or t["snoozed"]:
             continue
-        if t["status"] not in WAITING_STATUSES:
+        if t["status"] in WORKING_STATUSES and t["threadId"] not in pinned:
             continue
         entry = {
             "session": t["threadId"],
@@ -187,7 +209,7 @@ def snapshot(t3):
             entry["ts"] = prev["ts"]
         queue.append(entry)
     # Needs-you first (input, then failures), then newest.
-    rank = {"permission": 0, "error": 1, "idle": 2}
+    rank = {"permission": 0, "error": 1, "idle": 2, "working": 3}
     queue.sort(key=lambda e: (rank[e["status"]], -e["ts"]))
     return queue
 
@@ -275,7 +297,7 @@ def cmd_watch(interval):
         time.sleep(interval)
 
 
-ICON = {"permission": "\U000f02d7", "error": "\U000f0026", "idle": "\U000f05e0"}
+ICON = {"permission": "\U000f02d7", "error": "\U000f0026", "idle": "\U000f05e0", "working": "\U000f051f"}
 DIM, RESET = "\033[2m", "\033[0m"
 
 
