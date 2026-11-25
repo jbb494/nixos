@@ -45,6 +45,10 @@ in
 
   # T3 Code (desktop app, `t3`, `t3-hub`): no telemetry.
   environment.sessionVariables.T3CODE_TELEMETRY_ENABLED = "false";
+  # The app writes its own t3code:// handler (~/.local/share/applications/
+  # com.t3tools.T3Code.desktop); without this it points at bare electron,
+  # which fails ("Unable to find Electron app") for links and launches.
+  environment.sessionVariables.T3CODE_DESKTOP_LAUNCHER_PATH = "/run/current-system/sw/bin/t3code-desktop";
 
   # SSH by key only (Tailscale and sshd are already on via modules/system/base.nix).
   services.openssh.settings = {

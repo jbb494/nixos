@@ -10,10 +10,11 @@ A thread is waiting when it is top-level, not settled, not snoozed, and its
 last run finished, failed, or needs input. It leaves the queue once you
 settle it (Ctrl+Shift+S in T3, or dismiss here) and returns on new activity.
 
-Orchestrators (thread ids in $XDG_STATE_HOME/t3-queue/orchestrators.json,
-toggled with ctrl-o in the picker) are listed first in the picker and only
-enter the queue when they need input or failed: settling a pinned thread
-would move it out of T3's Pinned section, so they are never asked to settle.
+Orchestrators are threads whose T3 title contains the tag "#orch" (rename
+in T3 with F2; the front office names new orchestrators with it). The tag
+is hidden in the bar and picker. They are listed first in the picker and only enter
+the queue when they need input or failed: settling a pinned thread would
+move it out of T3's Pinned section, so they are never asked to settle.
 
 Talks to the local T3 server's MCP endpoint with a 30-day "mcp-client"
 bearer session cached under $XDG_STATE_HOME/t3-queue/token.
@@ -39,7 +40,7 @@ TOKEN_FILE = os.path.join(STATE_DIR, "token")
 QUEUE_FILE = os.path.join(
     os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"), "t3-done-queue.json"
 )
-ORCH_FILE = os.path.join(STATE_DIR, "orchestrators.json")
+ORCH_TAG = os.environ.get("T3_QUEUE_ORCH_TAG", "#orch")
 ORCH_VIEW_FILE = os.path.join(os.path.dirname(QUEUE_FILE), "t3-orchestrators.json")
 WAITING_STATUSES = {"completed", "failed", "interrupted", "cancelled", "rolled_back", "waiting"}
 NEEDS_YOU_STATUSES = {"failed", "waiting"}
@@ -165,17 +166,12 @@ class Client:
         return items
 
 
-def load_orchestrators():
-    try:
-        with open(ORCH_FILE) as f:
-            return set(json.load(f))
-    except (FileNotFoundError, json.JSONDecodeError):
-        return set()
+def has_orch_tag(title):
+    return ORCH_TAG.lower() in title.lower().split()
 
 
-def save_orchestrators(ids):
-    os.makedirs(STATE_DIR, mode=0o700, exist_ok=True)
-    write_json(ORCH_FILE, sorted(ids))
+def strip_orch_tag(title):
+    return " ".join(w for w in title.split() if w.lower() != ORCH_TAG.lower())
 
 
 def snapshot(t3):
@@ -186,7 +182,9 @@ def snapshot(t3):
     Orchestrators only enter the queue when they need you (input or failure),
     never just for finishing, so they never have to be settled.
     """
-    orch_ids = load_orchestrators()
+    # Keep each entry's timestamp while its status is unchanged, so the bar
+    # announces it once (T3 bumps updatedAt for unrelated reasons).
+    previous = {e["session"]: e for e in read_json(QUEUE_FILE) + read_json(ORCH_VIEW_FILE)}
     projects = {p["id"]: p["title"] for p in t3.paged("t3_project_list", {}, "projects")}
     threads = t3.paged("t3_thread_list", {"allProjects": True}, "threads")
     queue, orchs = [], []
@@ -196,7 +194,7 @@ def snapshot(t3):
         entry = {
             "session": t["threadId"],
             "window": "-",
-            "title": t["title"],
+            "title": strip_orch_tag(t["title"]),
             "status": BAR_STATUS.get(t["status"], "idle"),
             "t3Status": t["status"],
             "project": projects.get(t["projectId"], ""),
@@ -204,7 +202,10 @@ def snapshot(t3):
             "source": "t3",
             "link": t["link"],
         }
-        is_orch = t["threadId"] in orch_ids
+        prev = previous.get(t["threadId"])
+        if prev and prev.get("t3Status") == t["status"]:
+            entry["ts"] = prev["ts"]
+        is_orch = has_orch_tag(t["title"])
         if is_orch:
             orchs.append(entry)
         if t["snoozed"]:
@@ -265,26 +266,23 @@ def find_link(thread_id):
 
 
 def cmd_goto(thread_id):
-    subprocess.Popen([T3_DESKTOP, app_link(find_link(thread_id))], stdout=subprocess.DEVNULL,
-                     stderr=subprocess.DEVNULL, start_new_session=True)
-    time.sleep(0.3)
+    # Wait for the launcher to hand the link to the running app (it exits
+    # right after); a detached launch could be killed with the summon popup.
+    try:
+        subprocess.run([T3_DESKTOP, app_link(find_link(thread_id))], stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL, timeout=15)
+    except subprocess.TimeoutExpired:
+        pass
     subprocess.run(["hyprctl", "dispatch", "focuswindow", f"class:{T3_WINDOW_CLASS}"],
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def cmd_prune(thread_id):
-    if thread_id in load_orchestrators():
+    if any(e["session"] == thread_id for e in read_json(ORCH_VIEW_FILE)):
         return  # settling would drop it out of Pinned; orchestrators clear themselves
     t3 = Client()
     t3.call("t3_thread_organize", {"threadId": thread_id, "action": "settle"})
     write_json(QUEUE_FILE, [e for e in read_json(QUEUE_FILE) if e["session"] != thread_id])
-
-
-def cmd_toggle_orchestrator(thread_id):
-    ids = load_orchestrators()
-    ids ^= {thread_id}
-    save_orchestrators(ids)
-    refresh()
 
 
 def cmd_watch(interval):
@@ -330,10 +328,9 @@ def cmd_select():
     r = subprocess.run(
         ["fzf", "--ansi", "--delimiter", "\t", "--with-nth", "2", "--no-sort", "--layout", "reverse",
          "--prompt", "T3> ",
-         "--header", "enter: open · ctrl-x: settle · ctrl-o: mark/unmark orchestrator",
+         "--header", "enter: open · ctrl-x: settle",
          "--bind", f"start:reload({me} lines)",
-         "--bind", f"ctrl-x:execute-silent({me} prune {{1}})+reload({me} lines)",
-         "--bind", f"ctrl-o:execute-silent({me} toggle-orchestrator {{1}})+reload({me} lines)"],
+         "--bind", f"ctrl-x:execute-silent({me} prune {{1}})+reload({me} lines)"],
         stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, text=True,
     )
     if r.returncode == 0 and r.stdout.strip():
@@ -356,10 +353,8 @@ def main():
         cmd_goto(args[1])
     elif cmd == "prune" and len(args) == 2:
         cmd_prune(args[1])
-    elif cmd == "toggle-orchestrator" and len(args) == 2:
-        cmd_toggle_orchestrator(args[1])
     else:
-        sys.exit("usage: t3-queue [watch [SECONDS]|list|lines|select|goto THREAD|prune THREAD|toggle-orchestrator THREAD]")
+        sys.exit("usage: t3-queue [watch [SECONDS]|list|lines|select|goto THREAD|prune THREAD]")
 
 
 if __name__ == "__main__":

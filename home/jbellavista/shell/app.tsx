@@ -74,9 +74,7 @@ const t3QueueBin = '/etc/profiles/per-user/jbellavista/bin/t3-queue';
 const opencodeQueueFile = `${GLib.get_user_runtime_dir()}/opencode-done-queue.json`;
 const t3QueueFile = `${GLib.get_user_runtime_dir()}/t3-done-queue.json`;
 const opencodeQueue = Variable<OpencodeAttentionEntry[]>([]);
-const opencodePulsing = Variable(false);
 const opencodeAnnouncement = Variable('');
-let opencodePulseSource = 0;
 let opencodeAnnouncementSource = 0;
 
 const readOpencodeQueue = (): OpencodeAttentionEntry[] => [
@@ -99,26 +97,6 @@ const readQueueFile = (path: string): OpencodeAttentionEntry[] => {
   }
 };
 
-const triggerOpencodePulse = () => {
-  if (opencodePulseSource !== 0) {
-    GLib.source_remove(opencodePulseSource);
-    opencodePulseSource = 0;
-  }
-
-  // Drop the class for a tick so re-adding it restarts the CSS animation.
-  opencodePulsing.set(false);
-
-  GLib.timeout_add(GLib.PRIORITY_DEFAULT, 30, () => {
-    opencodePulsing.set(true);
-    opencodePulseSource = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 900, () => {
-      opencodePulsing.set(false);
-      opencodePulseSource = 0;
-      return GLib.SOURCE_REMOVE;
-    });
-    return GLib.SOURCE_REMOVE;
-  });
-};
-
 // Briefly expands the bar widget with the session name, then collapses back
 // to the icon + count badge.
 const announceOpencodeSession = (session: string) => {
@@ -135,15 +113,22 @@ const announceOpencodeSession = (session: string) => {
   });
 };
 
+// Every entry is announced once: keys stay remembered even after the entry
+// leaves the queue, so a re-read (file rewrite, momentary empty read) or a
+// returning entry with the same timestamp never announces again.
+const announcedQueueKeys = new Set<string>();
+let queueSeeded = false;
+const queueEntryKey = (entry: OpencodeAttentionEntry) => `${entry.source ?? 'opencode'}|${entry.session}|${entry.window ?? '-'}|${entry.ts}`;
+
 const updateOpencodeQueue = () => {
-  const previous = opencodeQueue.get();
   const next = readOpencodeQueue();
-  const fresh = next.filter((entry) => !previous.some((existing) => existing.session === entry.session && (existing.window ?? '-') === (entry.window ?? '-') && existing.ts === entry.ts));
+  const fresh = queueSeeded ? next.filter((entry) => !announcedQueueKeys.has(queueEntryKey(entry))) : [];
+  next.forEach((entry) => announcedQueueKeys.add(queueEntryKey(entry)));
+  queueSeeded = true;
 
   opencodeQueue.set(next);
 
   if (fresh.length > 0) {
-    triggerOpencodePulse();
     const latest = fresh[fresh.length - 1];
     announceOpencodeSession(latest.source === 't3' ? latest.title : latest.session);
   }
@@ -1525,15 +1510,12 @@ const AudioDropdown = (monitor: number) => (
 
 const OpencodeButton = ({ monitor }: { monitor: number }) => (
   <button
-    className={Variable.derive(
-      [bind(opencodeQueue), bind(opencodePulsing)],
-      (queue, pulsing) => {
-        const attention = queue.some((entry) => entry.status === 'error')
-          ? 'has-error'
-          : queue.some((entry) => entry.status === 'permission') ? 'has-ask' : '';
-        return `widget opencode-button ${attention} ${pulsing ? 'pulse' : ''}`;
-      },
-    )()}
+    className={bind(opencodeQueue).as((queue) => {
+      const attention = queue.some((entry) => entry.status === 'error')
+        ? 'has-error'
+        : queue.some((entry) => entry.status === 'permission') ? 'has-ask' : '';
+      return `widget opencode-button ${attention}`;
+    })}
     visible={bind(opencodeQueue).as((queue) => queue.length > 0)}
     onClick={(self) => toggleOpencode(monitor, self)}
   >
