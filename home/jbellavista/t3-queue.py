@@ -273,8 +273,20 @@ def cmd_goto(thread_id):
                        stderr=subprocess.DEVNULL, timeout=15)
     except subprocess.TimeoutExpired:
         pass
-    subprocess.run(["hyprctl", "dispatch", "focuswindow", f"class:{T3_WINDOW_CLASS}"],
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    focus_t3_window()
+
+
+def focus_t3_window():
+    # Hyprland's Lua config: `hyprctl dispatch focuswindow ...` no longer parses.
+    try:
+        clients = json.loads(subprocess.run(["hyprctl", "clients", "-j"], capture_output=True,
+                                            text=True, check=True).stdout)
+    except (subprocess.CalledProcessError, json.JSONDecodeError):
+        return
+    address = next((c["address"] for c in clients if c.get("class") == T3_WINDOW_CLASS), None)
+    if address:
+        lua = f'local w = hl.get_window("address:{address}"); if w then hl.dispatch(hl.dsp.focus({{ window = w }})) end'
+        subprocess.run(["hyprctl", "eval", lua], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def cmd_prune(thread_id):
