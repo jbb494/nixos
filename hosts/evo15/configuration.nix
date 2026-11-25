@@ -99,6 +99,9 @@ in
   # `sudo -u cliproxyapi cliproxyapi -config /var/lib/cliproxyapi/config.yaml -claude-login`.
   services.cliproxyapi = {
     enable = true;
+    # nixpkgs-master's: from 8.0.63 it tells Anthropic a current Claude Code version (8.0.61 said 2.1.280, and the API
+    # refuses Fable below 2.1.290: upstream issue 7386).
+    package = masterPkgs.cliproxyapi;
     settings = {
       config-version = 8;
       server = {
