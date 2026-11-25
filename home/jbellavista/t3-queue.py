@@ -169,8 +169,9 @@ def pinned_ids():
         db = sqlite3.connect(f"file:{STATE_DB}?mode=ro", uri=True, timeout=2)
         try:
             rows = db.execute(
-                "select thread_id from projection_threads"
-                " where pinned_at is not null and deleted_at is null and archived_at is null"
+                "select thread_id from orchestration_v2_projection_threads"
+                " where json_extract(payload_json, '$.pinnedAt') is not null"
+                " and deleted_at is null and archived_at is null"
             ).fetchall()
         finally:
             db.close()
