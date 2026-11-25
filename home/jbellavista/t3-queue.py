@@ -163,21 +163,42 @@ class Client:
         return items
 
 
-def pinned_ids():
-    """Pinned threads: the MCP thread list doesn't say, T3's state DB does."""
+def db_thread_flags():
+    """(pinned, busy) thread ids from T3's state DB, which the MCP list lacks.
+
+    busy: threads with pending background tasks, which T3 keeps in Working
+    ("Waiting") even though their run has completed.
+    """
     try:
         db = sqlite3.connect(f"file:{STATE_DB}?mode=ro", uri=True, timeout=2)
         try:
-            rows = db.execute(
+            pinned = db.execute(
                 "select thread_id from orchestration_v2_projection_threads"
                 " where json_extract(payload_json, '$.pinnedAt') is not null"
                 " and deleted_at is null and archived_at is null"
             ).fetchall()
+            busy = db.execute(
+                "select t.thread_id from orchestration_v2_projection_threads t"
+                " join orchestration_v2_projection_provider_threads p"
+                " on p.provider_thread_id = t.active_provider_thread_id"
+                " where json_array_length(p.payload_json, '$.pendingBackgroundTasks') > 0"
+            ).fetchall()
         finally:
             db.close()
     except sqlite3.Error:
-        return set()
-    return {r[0] for r in rows}
+        return set(), set()
+    return {r[0] for r in pinned}, {r[0] for r in busy}
+
+
+def is_working(t3, t, busy):
+    """T3's Working section: a live run, a run blocked waiting on another
+    thread, or pending background tasks. A run waiting on you is Active."""
+    if t["status"] in WORKING_STATUSES or t["threadId"] in busy:
+        return True
+    if t["status"] == "waiting":
+        thread = t3.call("t3_thread_read", {"threadId": t["threadId"], "limit": 1})["thread"]
+        return not thread.get("pendingRequestCount")
+    return False
 
 
 def snapshot(t3):
@@ -187,18 +208,19 @@ def snapshot(t3):
     previous = {e["session"]: e for e in read_json(QUEUE_FILE)}
     projects = {p["id"]: p["title"] for p in t3.paged("t3_project_list", {}, "projects")}
     threads = t3.paged("t3_thread_list", {"allProjects": True}, "threads")
-    pinned = pinned_ids()
+    pinned, busy = db_thread_flags()
     queue = []
     for t in threads:
         if t.get("parentThreadId") or t["settled"] or t["snoozed"]:
             continue
-        if t["status"] in WORKING_STATUSES and t["threadId"] not in pinned:
+        working = is_working(t3, t, busy)
+        if working and t["threadId"] not in pinned:
             continue
         entry = {
             "session": t["threadId"],
             "window": "-",
             "title": t["title"],
-            "status": BAR_STATUS.get(t["status"], "idle"),
+            "status": "working" if working else BAR_STATUS.get(t["status"], "idle"),
             "t3Status": t["status"],
             "project": projects.get(t["projectId"], ""),
             "ts": int(time.mktime(time.strptime(t["updatedAt"][:19], "%Y-%m-%dT%H:%M:%S"))),
