@@ -288,6 +288,7 @@ in
         (mkBind "${mod} + period" "hl.dsp.exit()")
         (mkBind "${mod} + F12" ''hl.dsp.exec_cmd("hyprctl switchxkblayout all next")'')
         (mkBind "${mod} + O" ''hl.dsp.exec_cmd("${tmuxProjectsBin} oc-queue pop")'')
+        (mkBind "${mod} + T" ''hl.dsp.exec_cmd("ghostty -e /etc/profiles/per-user/jbellavista/bin/t3-queue select")'')
         (mkBind "${mod} + H" ''hl.dsp.focus({ direction = "left" })'')
         (mkBind "${mod} + J" ''hl.dsp.focus({ direction = "down" })'')
         (mkBind "${mod} + K" ''hl.dsp.focus({ direction = "up" })'')

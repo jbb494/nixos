@@ -172,6 +172,20 @@ let
     '';
   };
 
+  # T3 Code threads waiting for you: feeds the shell bar's agent queue and an
+  # fzf picker (Super+T). See t3-queue.py.
+  t3-queue = pkgs.writeShellApplication {
+    name = "t3-queue";
+    runtimeInputs = with pkgs; [
+      fzf
+      hyprland
+      python3
+    ];
+    text = ''
+      exec python3 -I ${./t3-queue.py} "$@"
+    '';
+  };
+
   tmux-projects = pkgs.writeShellApplication {
     name = "tmux-projects";
     runtimeInputs = with pkgs; [
@@ -994,6 +1008,7 @@ in
       hypr-summon
       screenshot
       secedit
+      t3-queue
       tmux-projects
     ]
     ++ lib.optional (pkgs ? mise) pkgs.mise
@@ -1039,6 +1054,20 @@ in
         };
         Install.WantedBy = [ "default.target" ];
       };
+
+    # Polls the local T3 Code server and writes $XDG_RUNTIME_DIR/t3-done-queue.json.
+    t3-queue = {
+      Unit = {
+        Description = "T3 Code attention queue for the shell bar";
+        X-Restart-Triggers = [ "${t3-queue}" ];
+      };
+      Service = {
+        ExecStart = "${t3-queue}/bin/t3-queue watch 5";
+        Restart = "always";
+        RestartSec = 5;
+      };
+      Install.WantedBy = [ "default.target" ];
+    };
 
     opencode-web = opencodeWebService { port = 4096; };
     opencode-web-personal = opencodeWebService {

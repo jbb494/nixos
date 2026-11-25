@@ -55,7 +55,9 @@ const clock = Variable(GLib.DateTime.new_now_local()).poll(
 
 // --- opencode attention queue -----------------------------------------------
 // Mirrors $XDG_RUNTIME_DIR/opencode-done-queue.json, written by the opencode
-// plugin and managed through `tmux-projects oc-queue`.
+// plugin and managed through `tmux-projects oc-queue`. T3 Code threads join
+// the same queue from $XDG_RUNTIME_DIR/t3-done-queue.json, written by
+// `t3-queue watch`; their entries carry source "t3" (session = thread id).
 
 type OpencodeAttentionEntry = {
   session: string;
@@ -63,19 +65,28 @@ type OpencodeAttentionEntry = {
   title: string;
   status: string;
   ts: number;
+  source?: 't3';
+  project?: string;
 };
 
 const tmuxProjectsBin = '/etc/profiles/per-user/jbellavista/bin/tmux-projects';
+const t3QueueBin = '/etc/profiles/per-user/jbellavista/bin/t3-queue';
 const opencodeQueueFile = `${GLib.get_user_runtime_dir()}/opencode-done-queue.json`;
+const t3QueueFile = `${GLib.get_user_runtime_dir()}/t3-done-queue.json`;
 const opencodeQueue = Variable<OpencodeAttentionEntry[]>([]);
 const opencodePulsing = Variable(false);
 const opencodeAnnouncement = Variable('');
 let opencodePulseSource = 0;
 let opencodeAnnouncementSource = 0;
 
-const readOpencodeQueue = (): OpencodeAttentionEntry[] => {
+const readOpencodeQueue = (): OpencodeAttentionEntry[] => [
+  ...readQueueFile(opencodeQueueFile),
+  ...readQueueFile(t3QueueFile),
+];
+
+const readQueueFile = (path: string): OpencodeAttentionEntry[] => {
   try {
-    const content = readFile(opencodeQueueFile);
+    const content = readFile(path);
 
     if (!content) {
       return [];
@@ -133,7 +144,8 @@ const updateOpencodeQueue = () => {
 
   if (fresh.length > 0) {
     triggerOpencodePulse();
-    announceOpencodeSession(fresh[fresh.length - 1].session);
+    const latest = fresh[fresh.length - 1];
+    announceOpencodeSession(latest.source === 't3' ? latest.title : latest.session);
   }
 
   if (next.length === 0) {
@@ -143,16 +155,24 @@ const updateOpencodeQueue = () => {
 
 updateOpencodeQueue();
 monitorFile(opencodeQueueFile, updateOpencodeQueue);
+monitorFile(t3QueueFile, updateOpencodeQueue);
 
-const opencodeGoto = (session: string, window?: string) => {
+const opencodeGoto = (session: string, window?: string, source?: string) => {
   openOpencodePosition.set(null);
-  execAsync([tmuxProjectsBin, 'oc-queue', 'goto', session, window ?? '-']).catch((error) => {
-    console.error(`Failed to jump to tmux session ${session}: ${error}`);
+  const command = source === 't3'
+    ? [t3QueueBin, 'goto', session]
+    : [tmuxProjectsBin, 'oc-queue', 'goto', session, window ?? '-'];
+  execAsync(command).catch((error) => {
+    console.error(`Failed to jump to ${session}: ${error}`);
   });
 };
 
-const opencodePrune = (session: string, window?: string) => {
-  execAsync([tmuxProjectsBin, 'oc-queue', 'prune', session, window ?? '-']).catch((error) => {
+// For T3 threads, dismissing settles the thread in T3 itself.
+const opencodePrune = (session: string, window?: string, source?: string) => {
+  const command = source === 't3'
+    ? [t3QueueBin, 'prune', session]
+    : [tmuxProjectsBin, 'oc-queue', 'prune', session, window ?? '-'];
+  execAsync(command).catch((error) => {
     console.error(`Failed to dismiss opencode queue entry ${session}: ${error}`);
   });
 };
@@ -1563,7 +1583,7 @@ const OpencodeDropdown = (monitor: number) => (
   >
     <box className="dropdown-shell opencode-menu" vertical>
       <box className="opencode-menu-header">
-        <label className="opencode-menu-title" halign={Gtk.Align.START} hexpand label="OpenCode" />
+        <label className="opencode-menu-title" halign={Gtk.Align.START} hexpand label="Agents" />
         <label className="opencode-menu-summary" label={bind(opencodeQueue).as((queue) => `${queue.length} waiting`)} />
       </box>
 
@@ -1576,19 +1596,19 @@ const OpencodeDropdown = (monitor: number) => (
           <box className="opencode-entry-row">
             <button
               className={`opencode-entry ${entry.status === 'error' ? 'error' : ''} ${entry.status === 'permission' ? 'permission' : ''}`}
-              tooltipText={`Jump to ${entry.session}`}
+              tooltipText={`Jump to ${entry.source === 't3' ? entry.title : entry.session}`}
               hexpand
-              onClick={() => opencodeGoto(entry.session, entry.window)}
+              onClick={() => opencodeGoto(entry.session, entry.window, entry.source)}
             >
               <box>
                 <label className="opencode-entry-icon" label={entry.status === 'error' ? '󰀦' : entry.status === 'permission' ? '󰋗' : '󰗠'} />
                 <box vertical hexpand>
                   <label className="opencode-entry-title" halign={Gtk.Align.START} truncate label={entry.title || entry.session} />
-                  <label className="opencode-entry-meta" halign={Gtk.Align.START} truncate label={`${entry.session}${entry.window && entry.window !== '-' ? ` · ${entry.window}` : ''}`} />
+                  <label className="opencode-entry-meta" halign={Gtk.Align.START} truncate label={entry.source === 't3' ? `T3 · ${entry.project ?? ''}` : `${entry.session}${entry.window && entry.window !== '-' ? ` · ${entry.window}` : ''}`} />
                 </box>
               </box>
             </button>
-            <button className="opencode-dismiss" tooltipText="Dismiss" onClick={() => opencodePrune(entry.session, entry.window)}>
+            <button className="opencode-dismiss" tooltipText={entry.source === 't3' ? 'Settle in T3' : 'Dismiss'} onClick={() => opencodePrune(entry.session, entry.window, entry.source)}>
               <label label="󰅖" />
             </button>
           </box>
