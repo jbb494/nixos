@@ -2,7 +2,7 @@
 
 Mirrors the opencode attention queue: `watch` keeps
 $XDG_RUNTIME_DIR/t3-done-queue.json up to date for the shell bar, `select`
-is an fzf picker (the "T3" entry in the Super+D launcher), `goto` opens a
+is an fzf picker over the same entries (the "T3" entry in the Super+D launcher), `goto` opens a
 thread in the T3 desktop app and `prune` settles it (so it also leaves T3's
 Active inbox).
 
@@ -12,8 +12,7 @@ settle it (Ctrl+Shift+S in T3, or dismiss here) and returns on new activity.
 
 Orchestrators are threads whose project folder holds an `.orchestrator`
 file, the marker `agent open <name> --orchestrator` creates, so new ones
-are picked up automatically. They are listed first in the picker and only enter
-the queue when they need input or failed: settling a pinned thread would
+are picked up automatically. They only enter the queue when they need input or failed: settling a pinned thread would
 move it out of T3's Pinned section, so they are never asked to settle.
 
 Talks to the local T3 server's MCP endpoint with a 30-day "mcp-client"
@@ -22,7 +21,6 @@ bearer session cached under $XDG_STATE_HOME/t3-queue/token.
 
 import json
 import os
-import shlex
 import subprocess
 import sys
 import time
@@ -311,7 +309,6 @@ def cmd_watch(interval):
 
 
 ICON = {"permission": "\U000f02d7", "error": "\U000f0026", "idle": "\U000f05e0"}
-ORCH_ICON = "\U000f0403"
 DIM, RESET = "\033[2m", "\033[0m"
 
 
@@ -320,41 +317,23 @@ def age(ts):
     return f"{m}m" if m < 60 else f"{m // 60}h" if m < 1440 else f"{m // 1440}d"
 
 
-def parked(e):
-    if e.get("snoozed"):
-        return "snoozed"
-    if e.get("settled"):
-        return "settled"
-    return e["t3Status"]
+def queue_lines():
+    """Exactly what the bar shows: threads waiting for you."""
+    for e in read_json(QUEUE_FILE):
+        yield f"{e['session']}\t{ICON[e['status']]}  {e['title']}  {DIM}{e['project']} · {e['t3Status']} · {age(e['ts'])}{RESET}"
 
 
 def cmd_lines():
-    queue = read_json(QUEUE_FILE)
-    queued = {e["session"] for e in queue}
-    for e in read_json(ORCH_VIEW_FILE):
-        flag = f"  {ICON[e['status']]}" if e["session"] in queued else ""
-        print(f"{e['session']}\t{ORCH_ICON}  {e['title']}{flag}  {DIM}orchestrator · {e['project']} · {parked(e)}{RESET}")
-    for e in queue:
-        if e["session"] in {o["session"] for o in read_json(ORCH_VIEW_FILE)}:
-            continue
-        print(f"{e['session']}\t{ICON[e['status']]}  {e['title']}  {DIM}{e['project']} · {e['t3Status']} · {age(e['ts'])}{RESET}")
+    for line in queue_lines():
+        print(line)
 
 
 def cmd_select():
-    # fzf runs these through sh; the script is a plain (non-executable) .py
-    # in the Nix store, so call it through this interpreter.
-    me = f"{shlex.quote(sys.executable)} -I {shlex.quote(os.path.realpath(__file__))}"
-    try:
-        refresh()
-    except Exception as e:
-        print(f"t3-queue: {e}", file=sys.stderr)
+    # Reads the queue `watch` keeps fresh, so opening needs no server call.
     r = subprocess.run(
         ["fzf", "--ansi", "--delimiter", "\t", "--with-nth", "2", "--no-sort", "--layout", "reverse",
-         "--prompt", "T3> ",
-         "--header", "enter: open · ctrl-x: settle",
-         "--bind", f"start:reload({me} lines)",
-         "--bind", f"ctrl-x:execute-silent({me} prune {{1}})+reload({me} lines)"],
-        stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, text=True,
+         "--prompt", "T3> ", "--header", "enter: open"],
+        input="".join(line + "\n" for line in queue_lines()), stdout=subprocess.PIPE, text=True,
     )
     if r.returncode == 0 and r.stdout.strip():
         cmd_goto(r.stdout.split("\t", 1)[0])

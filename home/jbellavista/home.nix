@@ -907,8 +907,8 @@ in
   ] ++ summonModules;
 
   programs.summon.enable = true;
-  # "T3" in the Super+D launcher: orchestrators first, then T3 threads that
-  # are waiting for you. Not preloaded, so the list is fresh on every open.
+  # "T3" in the Super+D launcher: the T3 threads the bar shows as waiting.
+  # Not preloaded, so the list is fresh on every open.
   programs.summon.entries.t3 = {
     command = [ "${lib.getExe t3-queue}" "select" ];
     windowClass = "com.jbellavista.T3Queue";
@@ -924,7 +924,7 @@ in
       fileName = "t3-queue.desktop";
       name = "T3";
       genericName = "T3 Code threads";
-      comment = "Orchestrators and T3 threads waiting for you";
+      comment = "T3 threads waiting for you";
       icon = "utilities-terminal";
       categories = [ "Development" "Utility" ];
       keywords = [ "t3" "threads" "agents" "orchestrators" "queue" ];
