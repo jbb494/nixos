@@ -198,6 +198,8 @@ def snapshot(t3):
             "project": projects.get(t["projectId"], ""),
             "ts": int(time.mktime(time.strptime(t["updatedAt"][:19], "%Y-%m-%dT%H:%M:%S"))),
             "source": "t3",
+            "settled": t["settled"],
+            "snoozed": t["snoozed"],
             "link": t["link"],
         }
         prev = previous.get(t["threadId"])
@@ -305,12 +307,20 @@ def age(ts):
     return f"{m}m" if m < 60 else f"{m // 60}h" if m < 1440 else f"{m // 1440}d"
 
 
+def parked(e):
+    if e.get("snoozed"):
+        return "snoozed"
+    if e.get("settled"):
+        return "settled"
+    return e["t3Status"]
+
+
 def cmd_lines():
     queue = read_json(QUEUE_FILE)
     queued = {e["session"] for e in queue}
     for e in read_json(ORCH_VIEW_FILE):
         flag = f"  {ICON[e['status']]}" if e["session"] in queued else ""
-        print(f"{e['session']}\t{ORCH_ICON}  {e['title']}{flag}  {DIM}orchestrator · {e['project']} · {e['t3Status']}{RESET}")
+        print(f"{e['session']}\t{ORCH_ICON}  {e['title']}{flag}  {DIM}orchestrator · {e['project']} · {parked(e)}{RESET}")
     for e in queue:
         if e["session"] in {o["session"] for o in read_json(ORCH_VIEW_FILE)}:
             continue
