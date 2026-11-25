@@ -97,21 +97,6 @@ in
   # CLIProxyAPI: holds the Claude subscription login and serves it as an API on
   # localhost only. Logins live in /var/lib/cliproxyapi; add one with
   # `sudo -u cliproxyapi cliproxyapi -config /var/lib/cliproxyapi/config.yaml -claude-login`.
-  # Agent conversations on this machine (they run as jbellavista) may apply this flake without a password, so they
-  # can merge, push and switch on their own (Joan, 2026-11-25). Only this exact command: switch to this checkout's
-  # evo15 configuration. Rollback: `sudo nixos-rebuild switch --rollback`.
-  security.sudo.extraRules = [
-    {
-      users = [ "jbellavista" ];
-      commands = [
-        {
-          command = "/run/current-system/sw/bin/nixos-rebuild switch --flake /home/jbellavista/personal/nixos#evo15";
-          options = [ "NOPASSWD" "SETENV" ];
-        }
-      ];
-    }
-  ];
-
   services.cliproxyapi = {
     enable = true;
     # nixpkgs-master's: from 8.0.63 it tells Anthropic a current Claude Code version (8.0.61 said 2.1.280, and the API
