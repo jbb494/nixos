@@ -10,6 +10,7 @@ let
   home = "/home/${user}";
   clone = "${home}/.local/state/nixos-switch/nixos";
   devtools = "${home}/rollnroll/devtools";
+  built = "/var/lib/nixos-switch/nixos";
   # The clone is fetched as jbellavista, with its own SSH setup for the personal GitHub account.
   asUser = cmd: ''${pkgs.util-linux}/bin/runuser -u ${user} -- ${pkgs.coreutils}/bin/env HOME=${home} ${cmd}'';
   git = "${pkgs.git}/bin/git";
@@ -23,8 +24,12 @@ let
     fi
     ${asUser "${git} -C ${clone} fetch --quiet origin main"}
     ${asUser "${git} -C ${clone} reset --quiet --hard origin/main"}
-    echo "nixos-switch: evo15 at $(${asUser "${git} -C ${clone} log --oneline -1"})"
-    exec /run/current-system/sw/bin/nixos-rebuild switch --flake ${clone}#evo15 \
+    # Nix refuses a Git repository its user doesn't own, so the build reads root's own copy of what was just fetched.
+    if [ ! -d ${built}/.git ]; then ${git} init --quiet ${built}; fi
+    ${git} -c safe.directory='*' -C ${built} fetch --quiet ${clone} main
+    ${git} -C ${built} reset --quiet --hard FETCH_HEAD
+    echo "nixos-switch: evo15 at $(${git} -C ${built} log --oneline -1)"
+    exec /run/current-system/sw/bin/nixos-rebuild switch --flake ${built}#evo15 \
       --override-input rollnroll-devtools ${devtools}
   '';
 in
@@ -33,6 +38,7 @@ in
     description = "Switch evo15 to origin/main of the nixos repo, with the local devtools (agents start it)";
     serviceConfig = {
       Type = "oneshot";
+      StateDirectory = "nixos-switch";
       ExecStart = script;
     };
     # The switch reloads units; this one must not be stopped or restarted by the switch it is running.
