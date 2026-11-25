@@ -179,7 +179,7 @@ let
     runtimeInputs = with pkgs; [
       fzf
       hyprland
-      python3
+      (python3.withPackages (ps: [ ps.websockets ]))
     ];
     text = ''
       exec python3 -I ${./t3-queue.py} "$@"
@@ -1079,14 +1079,14 @@ in
         Install.WantedBy = [ "default.target" ];
       };
 
-    # Polls the local T3 Code server and writes $XDG_RUNTIME_DIR/t3-done-queue.json.
+    # Follows the local T3 Code server live and writes $XDG_RUNTIME_DIR/t3-done-queue.json.
     t3-queue = {
       Unit = {
         Description = "T3 Code attention queue for the shell bar";
         X-Restart-Triggers = [ "${t3-queue}" ];
       };
       Service = {
-        ExecStart = "${t3-queue}/bin/t3-queue watch 5";
+        ExecStart = "${t3-queue}/bin/t3-queue watch";
         Restart = "always";
         RestartSec = 5;
       };

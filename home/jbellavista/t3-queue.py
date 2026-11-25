@@ -2,26 +2,31 @@
 
 Mirrors the opencode attention queue: `watch` keeps
 $XDG_RUNTIME_DIR/t3-done-queue.json up to date for the shell bar, `select`
-is an fzf picker over the same entries (the "T3" entry in the Super+D launcher), `goto` opens a
-thread in the T3 desktop app and `prune` settles it (so it also leaves T3's
-Active inbox).
+is an fzf picker over the same entries (the "T3" entry in the Super+D
+launcher), `goto` opens a thread in the T3 desktop app and `prune` settles it.
 
-A thread is waiting when it is top-level, not settled, not snoozed, and its
-last run finished, failed, or needs input. It leaves the queue once you
-settle it (Ctrl+Shift+S in T3, or dismiss here) and returns on new activity.
+The queue is T3's sidebar Pinned + Active sections. `watch` follows the same
+live feed the T3 app's sidebar uses (the server's internal
+`orchestration.subscribeShell` RPC over its /ws socket) and sorts threads
+with the sidebar's own rules (ported from T3 0.1.8, see `sidebar_section`).
+That feed is not a public API: if a T3 update changes it, the bar shows one
+red "T3 tray broken: ..." entry saying what no longer matches.
 
-Talks to the local T3 server's MCP endpoint with a 30-day "mcp-client"
-bearer session cached under $XDG_STATE_HOME/t3-queue/token.
+Settling uses the server's MCP endpoint (a 30-day "mcp-client" token); the
+feed uses a separate read-only token. Both are cached under
+$XDG_STATE_HOME/t3-queue/.
 """
 
+import asyncio
+import datetime
 import json
 import os
 import shlex
-import sqlite3
 import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 T3_BIN_DIR = os.environ.get("T3_BIN_DIR", "/run/current-system/sw/bin")
@@ -29,21 +34,26 @@ T3 = os.path.join(T3_BIN_DIR, "t3")
 T3_DESKTOP = os.path.join(T3_BIN_DIR, "t3code-desktop")
 T3_HOME = os.environ.get("T3CODE_HOME", os.path.expanduser("~/.t3"))
 RUNTIME_STATE = os.path.join(T3_HOME, "userdata", "server-runtime.json")
+ENVIRONMENT_ID_FILE = os.path.join(T3_HOME, "userdata", "environment-id")
 STATE_DIR = os.path.join(
     os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")), "t3-queue"
 )
 TOKEN_FILE = os.path.join(STATE_DIR, "token")
+FEED_TOKEN_FILE = os.path.join(STATE_DIR, "feed-token")
 QUEUE_FILE = os.path.join(
     os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}"), "t3-done-queue.json"
 )
-STATE_DB = os.path.join(T3_HOME, "userdata", "statev2.sqlite")
-# T3's sidebar: snoozed, then settled, then pinned, then Working (these
-# statuses), and every other thread is Active. The tray is Pinned + Active.
-WORKING_STATUSES = {"preparing", "queued", "starting", "running"}
-# Bar widget vocabulary (shared with the opencode queue): idle | error |
-# permission, plus working (only pinned threads show while running).
-BAR_STATUS = {"failed": "error", "waiting": "permission", **{s: "working" for s in WORKING_STATUSES}}
 T3_WINDOW_CLASS = "com.t3tools.T3Code"
+ERROR_SESSION = "t3-queue-error"
+
+# The live feed's protocol (packages/contracts/src/environment.ts in T3).
+ORCHESTRATION_PROTOCOL = "2"
+SHELL_RPC = "orchestration.subscribeShell"
+# Run states T3 counts as a live run (client runtime "active" statuses).
+ACTIVE_RUN_STATUSES = {"preparing", "queued", "starting", "running", "waiting"}
+# Fields the sidebar rules read; a T3 update that drops one breaks the tray.
+REQUIRED_THREAD_FIELDS = ("id", "projectId", "title", "status", "lineage", "archivedAt",
+                          "settledOverride", "pendingRuntimeRequest", "updatedAt")
 
 
 class AuthError(Exception):
@@ -55,29 +65,38 @@ def server_origin():
         return json.load(f)["origin"]
 
 
-def issue_token():
-    out = subprocess.run(
-        [T3, "auth", "session", "issue", "--subject", "mcp-client", "--ttl", "30d",
-         "--label", "t3-queue", "--scope", "orchestration:read",
-         "--scope", "orchestration:operate", "--token-only"],
-        capture_output=True, text=True, check=True,
-    ).stdout.strip()
+def environment_id():
+    with open(ENVIRONMENT_ID_FILE) as f:
+        return f.read().strip()
+
+
+def issue_token(path=TOKEN_FILE, subject="mcp-client", scopes=("orchestration:read", "orchestration:operate")):
+    args = [T3, "auth", "session", "issue", "--subject", subject, "--ttl", "30d",
+            "--label", "t3-queue", "--token-only"]
+    for scope in scopes:
+        args += ["--scope", scope]
+    out = subprocess.run(args, capture_output=True, text=True, check=True).stdout.strip()
     os.makedirs(STATE_DIR, mode=0o700, exist_ok=True)
-    fd = os.open(TOKEN_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w") as f:
         f.write(out)
     return out
 
 
-def cached_token():
+def issue_feed_token():
+    # The feed socket refuses "mcp-client" tokens, so it gets its own, read-only.
+    return issue_token(FEED_TOKEN_FILE, "t3-queue-feed", ("orchestration:read",))
+
+
+def cached_token(path=TOKEN_FILE, issue=issue_token):
     try:
-        with open(TOKEN_FILE) as f:
+        with open(path) as f:
             tok = f.read().strip()
             if tok:
                 return tok
     except FileNotFoundError:
         pass
-    return issue_token()
+    return issue()
 
 
 class Client:
@@ -163,78 +182,232 @@ class Client:
         return items
 
 
-def db_thread_flags():
-    """(pinned, busy) thread ids from T3's state DB, which the MCP list lacks.
+class FeedBroken(Exception):
+    """The live feed no longer looks like T3 0.1.8's: shown in the bar."""
 
-    busy: threads with pending background tasks, which T3 keeps in Working
-    ("Waiting") even though their run has completed.
+
+def parse_time(value):
+    if not value:
+        return None
+    return datetime.datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+
+
+def is_listed(t):
+    # isListedThreadLineage: subagents and side chats live inside their parent.
+    lineage = t["lineage"]
+    return lineage.get("relationshipToParent") != "subagent" and lineage.get("sideChat") is not True
+
+
+def has_request(t):
+    req = t["pendingRuntimeRequest"]
+    return req is not None and req.get("kind") != "auth_refresh"
+
+
+def holds_completion(tasks):
+    # backgroundWorkHoldsCompletion: commands and monitors only when awaited.
+    return any(task.get("awaited") is True or task.get("kind") in ("subagent", "background_task")
+               for task in tasks)
+
+
+def sidebar_section(t, threads, env, now, children_asking):
+    """The section T3's sidebar puts a thread in, or None when it isn't listed.
+
+    Port of the 0.1.8 client: snoozed, then settled, then pinned, then Working
+    (a live run, a run blocked on another thread, or background work that
+    holds completion, unless something waits on you), else Active.
     """
-    try:
-        db = sqlite3.connect(f"file:{STATE_DB}?mode=ro", uri=True, timeout=2)
-        try:
-            pinned = db.execute(
-                "select thread_id from orchestration_v2_projection_threads"
-                " where json_extract(payload_json, '$.pinnedAt') is not null"
-                " and deleted_at is null and archived_at is null"
-            ).fetchall()
-            busy = db.execute(
-                "select t.thread_id from orchestration_v2_projection_threads t"
-                " join orchestration_v2_projection_provider_threads p"
-                " on p.provider_thread_id = t.active_provider_thread_id"
-                " where json_array_length(p.payload_json, '$.pendingBackgroundTasks') > 0"
-            ).fetchall()
-        finally:
-            db.close()
-    except sqlite3.Error:
-        return set(), set()
-    return {r[0] for r in pinned}, {r[0] for r in busy}
+    if t["archivedAt"] is not None or not is_listed(t):
+        return None
+    parent = t.get("delegatedFrom")
+    if parent and parent.get("environmentId") == env and parent.get("threadId") in threads:
+        return None  # delegated work is shown under its (live) parent
+    snoozed_until = parse_time(t.get("snoozedUntil"))
+    if snoozed_until is not None and snoozed_until > now:
+        return "snoozed"
+    if t["settledOverride"] == "settled":
+        return "settled"
+    if t.get("pinnedAt") is not None:
+        return "pinned"
+    return "working" if is_working(t, children_asking) else "active"
 
 
-def is_working(t3, t, busy):
-    """T3's Working section: a live run, a run blocked waiting on another
-    thread, or pending background tasks. A run waiting on you is Active."""
-    if t["status"] in WORKING_STATUSES or t["threadId"] in busy:
-        return True
-    if t["status"] == "waiting":
-        thread = t3.call("t3_thread_read", {"threadId": t["threadId"], "limit": 1})["thread"]
-        return not thread.get("pendingRequestCount")
-    return False
+def needs_you(t, children_asking):
+    return (has_request(t) or t["id"] in children_asking
+            or (t.get("pendingGuestMessageCount") or 0) > 0)
 
 
-def snapshot(t3):
-    """Threads waiting for you, for the bar and the picker."""
-    # Keep each entry's timestamp while its status is unchanged, so the bar
-    # announces it once (T3 bumps updatedAt for unrelated reasons).
-    previous = {e["session"]: e for e in read_json(QUEUE_FILE)}
-    projects = {p["id"]: p["title"] for p in t3.paged("t3_project_list", {}, "projects")}
-    threads = t3.paged("t3_thread_list", {"allProjects": True}, "threads")
-    pinned, busy = db_thread_flags()
+def is_working(t, children_asking):
+    if needs_you(t, children_asking):
+        return False
+    run = t.get("activityRunStatus") or t["status"]
+    return run in ACTIVE_RUN_STATUSES or holds_completion(t.get("pendingBackgroundTasks") or [])
+
+
+def build_queue(threads, projects, env, previous):
+    """Pinned + Active threads as bar entries."""
+    now = time.time()
+    for t in threads.values():
+        missing = [k for k in REQUIRED_THREAD_FIELDS if k not in t]
+        if missing:
+            raise FeedBroken(f"thread data lacks {', '.join(missing)}")
+    children_asking = {
+        t["lineage"].get("parentThreadId") for t in threads.values()
+        if t["lineage"].get("relationshipToParent") == "subagent" and has_request(t)
+    }
     queue = []
-    for t in threads:
-        if t.get("parentThreadId") or t["settled"] or t["snoozed"]:
+    for t in threads.values():
+        section = sidebar_section(t, threads, env, now, children_asking)
+        if section not in ("pinned", "active"):
             continue
-        working = is_working(t3, t, busy)
-        if working and t["threadId"] not in pinned:
-            continue
+        working = is_working(t, children_asking)
+        if needs_you(t, children_asking):
+            status, label = "permission", "needs you"
+        elif t["status"] == "failed" or t.get("lastError"):
+            status, label = "error", "failed"
+        elif working:
+            status, label = "working", t.get("activityRunStatus") or t["status"]
+        else:
+            status, label = "idle", t["status"]
         entry = {
-            "session": t["threadId"],
+            "session": t["id"],
             "window": "-",
             "title": t["title"],
-            "status": "working" if working else BAR_STATUS.get(t["status"], "idle"),
-            "t3Status": t["status"],
+            "status": status,
+            "t3Status": label,
             "project": projects.get(t["projectId"], ""),
-            "ts": int(time.mktime(time.strptime(t["updatedAt"][:19], "%Y-%m-%dT%H:%M:%S"))),
+            "ts": int(parse_time(t.get("latestRunCompletedAt")) or parse_time(t["updatedAt"]) or now),
             "source": "t3",
-            "link": t["link"],
+            "link": f"t3code://threads/{env}/{urllib.parse.quote(t['id'], safe='')}",
         }
-        prev = previous.get(t["threadId"])
-        if prev and prev.get("t3Status") == t["status"]:
+        # Keep the timestamp while the state is unchanged, so the bar
+        # announces each entry once.
+        prev = previous.get(t["id"])
+        if prev and prev.get("status") == status and prev.get("t3Status") == label:
             entry["ts"] = prev["ts"]
         queue.append(entry)
-    # Needs-you first (input, then failures), then newest.
+    # Needs-you first (input, then failures), then newest; pinned-but-running last.
     rank = {"permission": 0, "error": 1, "idle": 2, "working": 3}
     queue.sort(key=lambda e: (rank[e["status"]], -e["ts"]))
     return queue
+
+
+def error_queue(message):
+    """One red bar entry instead of a silently wrong tray."""
+    prev = next((e for e in read_json(QUEUE_FILE) if e.get("session") == ERROR_SESSION), None)
+    title = f"T3 tray broken: {message}"
+    return [{
+        "session": ERROR_SESSION,
+        "window": "-",
+        "title": title,
+        "status": "error",
+        "t3Status": "t3-queue",
+        "project": "journalctl --user -u t3-queue",
+        "ts": prev["ts"] if prev and prev.get("title") == title else int(time.time()),
+        "source": "t3",
+        "link": "",
+    }]
+
+
+class ShellFeed:
+    """Client for T3's sidebar feed: an Effect RPC stream over a WebSocket."""
+
+    def __init__(self):
+        self.threads = {}
+        self.projects = {}
+        self.ready = False
+
+    async def run(self, on_change):
+        import websockets  # only `watch`/`list` need it
+
+        origin = server_origin()
+        url = origin.replace("http", "ws", 1) + f"/ws?orchestrationProtocol={ORCHESTRATION_PROTOCOL}"
+        token = cached_token(FEED_TOKEN_FILE, issue_feed_token)
+        for attempt in range(2):
+            try:
+                ws = await websockets.connect(
+                    url, additional_headers={"Authorization": f"Bearer {token}"},
+                    max_size=None, open_timeout=10)
+                break
+            except websockets.exceptions.InvalidStatus as e:
+                code = e.response.status_code
+                body = e.response.body.decode(errors="replace") if e.response.body else ""
+                if code == 426:
+                    try:
+                        wanted = json.loads(body).get("orchestrationProtocolVersion")
+                    except (json.JSONDecodeError, AttributeError):
+                        wanted = "?"
+                    raise FeedBroken(f"T3 feed protocol changed ({ORCHESTRATION_PROTOCOL} → {wanted})")
+                if code in (401, 403) and attempt == 0:
+                    token = issue_feed_token()
+                    continue
+                raise FeedBroken(f"feed refused the connection (HTTP {code})")
+        async with ws:
+            await ws.send(json.dumps({"_tag": "Request", "id": "1", "tag": SHELL_RPC,
+                                      "payload": {}, "headers": []}))
+            pinger = asyncio.create_task(self._ping(ws))
+            try:
+                async for raw in ws:
+                    data = json.loads(raw)
+                    for msg in data if isinstance(data, list) else [data]:
+                        await self._handle(ws, msg)
+                    if self.ready:
+                        on_change(self)
+            finally:
+                pinger.cancel()
+
+    async def _ping(self, ws):
+        while True:
+            await asyncio.sleep(20)
+            await ws.send(json.dumps({"_tag": "Ping"}))
+
+    async def _handle(self, ws, msg):
+        tag = msg.get("_tag")
+        if tag == "Chunk":
+            await ws.send(json.dumps({"_tag": "Ack", "requestId": msg["requestId"]}))
+            for item in msg["values"]:
+                self._apply(item)
+        elif tag == "Pong":
+            pass
+        elif tag == "Exit":
+            raise FeedBroken(f"feed ended: {json.dumps(msg.get('exit'))[:200]}")
+        else:
+            raise FeedBroken(f"unexpected feed message {json.dumps(msg)[:200]}")
+
+    def _apply(self, item):
+        kind = item.get("kind")
+        if kind == "snapshot":
+            snap = item["snapshot"]
+            if "resolvedRepositoryIdentityRoots" in item:
+                # Partial refresh of project details; threads unchanged.
+                self.projects.update({p["id"]: p["title"] for p in snap["projects"]})
+                return
+            self.threads = {t["id"]: t for t in snap["threads"]}
+            self.projects = {p["id"]: p["title"] for p in snap["projects"]}
+            self.ready = True
+        elif kind == "thread.updated":
+            t = item["thread"]
+            if item["location"] == "active":
+                self.threads[t["id"]] = t
+            else:
+                self.threads.pop(t["id"], None)
+        elif kind == "thread.removed":
+            self.threads.pop(item["threadId"], None)
+        elif kind == "project.updated":
+            self.projects[item["project"]["id"]] = item["project"]["title"]
+        elif kind == "project.removed":
+            self.projects.pop(item["projectId"], None)
+        elif kind in ("synchronized", "snapshot-required"):
+            pass
+        else:
+            raise FeedBroken(f"unknown feed item {kind!r}")
+
+
+def queue_from_feed(feed, env):
+    previous = {e["session"]: e for e in read_json(QUEUE_FILE)}
+    try:
+        return build_queue(feed.threads, feed.projects, env, previous)
+    except (KeyError, TypeError, AttributeError, ValueError) as e:
+        raise FeedBroken(f"thread data changed shape ({type(e).__name__}: {e})") from e
 
 
 def write_json(path, value):
@@ -259,13 +432,9 @@ def read_json(path):
         return []
 
 
-def refresh(t3=None):
-    write_json(QUEUE_FILE, snapshot(t3 or Client()))
-
-
 def app_link(link):
-    # https://app.t3.codes/threads/<env>/<thread> -> t3code://threads/<env>/<thread>
-    return "t3code://threads/" + link.split("/threads/", 1)[1]
+    # https://app.t3.codes/threads/<env>/<thread> or t3code://threads/... -> t3code://threads/<env>/<thread>
+    return "t3code://threads/" + link.split("threads/", 1)[1]
 
 
 def find_link(thread_id):
@@ -279,6 +448,8 @@ def find_link(thread_id):
 
 
 def cmd_goto(thread_id):
+    if thread_id == ERROR_SESSION:
+        return
     # Wait for the launcher to hand the link to the running app (it exits
     # right after); a detached launch could be killed with the summon popup.
     try:
@@ -303,21 +474,55 @@ def focus_t3_window():
 
 
 def cmd_prune(thread_id):
+    if thread_id == ERROR_SESSION:  # just hide it until the next retry
+        write_json(QUEUE_FILE, [e for e in read_json(QUEUE_FILE) if e["session"] != thread_id])
+        return
     t3 = Client()
     t3.call("t3_thread_organize", {"threadId": thread_id, "action": "settle"})
     write_json(QUEUE_FILE, [e for e in read_json(QUEUE_FILE) if e["session"] != thread_id])
 
 
-def cmd_watch(interval):
-    t3 = None
+def cmd_watch():
+    """Follow the feed; on a T3 update that breaks it, show the error and retry."""
+    env = environment_id()
+
+    def on_change(feed):
+        write_json(QUEUE_FILE, queue_from_feed(feed, env))
+
     while True:
+        delay = 3
         try:
-            t3 = t3 or Client()
-            refresh(t3)
-        except Exception as e:  # server down or restarting: keep the last queue, retry
+            asyncio.run(ShellFeed().run(on_change))
+        except FeedBroken as e:
             print(f"t3-queue: {e}", file=sys.stderr, flush=True)
-            t3 = None
-        time.sleep(interval)
+            write_json(QUEUE_FILE, error_queue(str(e)))
+            delay = 30
+        except (OSError, EOFError, json.JSONDecodeError) as e:
+            # T3 closed or restarting: nothing to go to.
+            print(f"t3-queue: feed down ({type(e).__name__}: {e})", file=sys.stderr, flush=True)
+            write_json(QUEUE_FILE, [])
+        except Exception as e:  # websockets' ConnectionClosed and friends
+            print(f"t3-queue: feed closed ({type(e).__name__}: {e})", file=sys.stderr, flush=True)
+        time.sleep(delay)
+
+
+def cmd_list():
+    """The queue from one fresh snapshot (for testing)."""
+    env = environment_id()
+    result = {}
+
+    class Done(Exception):
+        pass
+
+    def on_change(feed):
+        result["queue"] = queue_from_feed(feed, env)
+        raise Done()
+
+    try:
+        asyncio.run(ShellFeed().run(on_change))
+    except Done:
+        pass
+    print(json.dumps(result.get("queue", []), indent=1))
 
 
 ICON = {"permission": "\U000f02d7", "error": "\U000f0026", "idle": "\U000f05e0", "working": "\U000f051f"}
@@ -390,9 +595,9 @@ def main():
     args = sys.argv[1:]
     cmd = args[0] if args else "select"
     if cmd == "watch":
-        cmd_watch(float(args[1]) if len(args) > 1 else 5)
+        cmd_watch()  # an old "SECONDS" argument is ignored
     elif cmd == "list":
-        print(json.dumps(snapshot(Client()), indent=1))
+        cmd_list()
     elif cmd == "lines":
         cmd_lines()
     elif cmd == "fzf-watch":
@@ -404,7 +609,7 @@ def main():
     elif cmd == "prune" and len(args) == 2:
         cmd_prune(args[1])
     else:
-        sys.exit("usage: t3-queue [watch [SECONDS]|list|lines|select|goto THREAD|prune THREAD]")
+        sys.exit("usage: t3-queue [watch|list|lines|select|goto THREAD|prune THREAD]")
 
 
 if __name__ == "__main__":
