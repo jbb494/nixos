@@ -23,6 +23,18 @@ in
 
   networking.hostName = "evo15";
 
+  # T3 0.1.8's Files panel flashes white on every HTML change and thread switch: its built client patched until
+  # upstream fixes it (packages/t3code-files-frame.nix, pinned to 0.1.8: a new T3 fails the build until it's checked).
+  # The resource monitor is passed through as built (overriding the unwrapped package would rebuild it).
+  nixpkgs.overlays = [
+    (_final: prev: {
+      t3code = prev.t3code.override {
+        t3code-unwrapped = prev.callPackage ../../packages/t3code-files-frame.nix { inherit (prev) t3code; };
+        t3code-resource-monitor = prev.t3code.resourceMonitor;
+      };
+    })
+  ];
+
   boot = {
     # Default LTS kernel series (deliberately not linuxPackages_latest).
     kernelPackages = pkgs.linuxPackages;
