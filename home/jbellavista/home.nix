@@ -1023,6 +1023,7 @@ in
       spotify
       strace
       stylua
+      temporal-cli  # `temporal server start-dev` for the agency work (harness feedback #42)
       typescript-language-server
       uv
       vscode-langservers-extracted
