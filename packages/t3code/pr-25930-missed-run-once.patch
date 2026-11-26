@@ -1,0 +1,198 @@
+Carried from pingdotgg/t3code PR #25930, "feat(scheduled-tasks): optionally run a missed fixed-time slot once when
+back" (https://github.com/pingdotgg/t3code/pull/25930), head 174f1eafa3, diffed against its merge base with main
+(2fbb071e0c). Applies to v0.1.12 as is (line offsets only).
+
+What it does: a fixed-time schedule takes `missedRun: "skip" | "run_once"`. With "run_once", a time missed while T3
+was off or asleep (normally skipped once it is more than 10 minutes late) runs once when T3 is back; several missed
+times coalesce into one run. Omitted on save keeps the stored value. The server advertises `missedRunSchedules`; the
+web editor shows a "Run once if missed" switch for "At a time" tasks; schedule_task (MCP) takes it through the shared
+schema.
+
+Changed from upstream: trimmed to what ships in this build; no behaviour change. Left out:
+- apps/mobile/** (the mobile app isn't part of this package),
+- the 20 web/mobile translation catalogs (an untranslated string falls back to its English source, and English never
+  reads a catalog),
+- docs/user/project-settings.md,
+- the tests (Schedule, ScheduledTaskService.schedule, ServerEnvironment, web logic; they run in upstream's CI) and
+  apps/server/src/provider/agentContextBudget.json, which only the context-budget test reads: in this tree that test
+  is 236 bytes over budget (the schedule_task trigger description grew).
+Reviewed against 0.1.12 (Schedule.isMissedFixedTimeRun, ScheduledTaskService.runDueTasks/upsert, the web draft):
+nothing to fix.
+
+Replace with upstream: as soon as a T3 release includes #25930. Our tasks set `missedRun` explicitly
+(nexus-sessions plugin/hooks/schedules.js), so upstream's field name and values are what has to match.
+
+diff --git a/apps/server/src/environment/ServerEnvironment.ts b/apps/server/src/environment/ServerEnvironment.ts
+index a340037016..7e1532d16f 100644
+--- a/apps/server/src/environment/ServerEnvironment.ts
++++ b/apps/server/src/environment/ServerEnvironment.ts
+@@ -282,6 +282,7 @@ export const make = Effect.gen(function* () {
+       ignoredFileSearch: true,
+       triage: true,
+       oneTimeSchedules: true,
++      missedRunSchedules: true,
+       freshContext: true,
+       scheduledTaskThreadModes: true,
+       npmReleaseLookup: true,
+diff --git a/apps/server/src/scheduledTasks/Schedule.ts b/apps/server/src/scheduledTasks/Schedule.ts
+index ec1f3c2adb..7f0674ab1d 100644
+--- a/apps/server/src/scheduledTasks/Schedule.ts
++++ b/apps/server/src/scheduledTasks/Schedule.ts
+@@ -77,6 +77,6 @@ export function isMissedFixedTimeRun(
+   dueAt: DateTime.DateTime,
+   now: DateTime.DateTime,
+ ): boolean {
+-  if (schedule.type !== "fixed_time") return false;
++  if (schedule.type !== "fixed_time" || schedule.missedRun === "run_once") return false;
+   return DateTime.toEpochMillis(now) - DateTime.toEpochMillis(dueAt) > MISSED_FIXED_TIME_GRACE_MS;
+ }
+diff --git a/apps/server/src/scheduledTasks/ScheduledTaskService.ts b/apps/server/src/scheduledTasks/ScheduledTaskService.ts
+index 1c81d5f7e9..d24f7d3188 100644
+--- a/apps/server/src/scheduledTasks/ScheduledTaskService.ts
++++ b/apps/server/src/scheduledTasks/ScheduledTaskService.ts
+@@ -1547,7 +1547,14 @@ export const layer = Layer.effect(
+             }
+           : input.schedule.type === "once"
+             ? { type: "once", runAt: iso(DateTime.makeUnsafe(input.schedule.runAt)) }
+-            : input.schedule;
++            : input.schedule.type === "fixed_time" &&
++                input.schedule.missedRun === undefined &&
++                existingTask?.schedule.type === "fixed_time" &&
++                existingTask.schedule.missedRun !== undefined
++              ? // Omitted keeps the stored choice, so a client that predates missedRun
++                // can re-save a task without clearing it.
++                { ...input.schedule, missedRun: existingTask.schedule.missedRun }
++              : input.schedule;
+       const webhook =
+         input.schedule.type === "webhook"
+           ? yield* Effect.gen(function* () {
+diff --git a/apps/web/src/components/settings/ScheduledTasksSettings.tsx b/apps/web/src/components/settings/ScheduledTasksSettings.tsx
+index fc7be80a59..edd2256db8 100644
+--- a/apps/web/src/components/settings/ScheduledTasksSettings.tsx
++++ b/apps/web/src/components/settings/ScheduledTasksSettings.tsx
+@@ -193,6 +193,7 @@ const EMPTY_DRAFT: DraftState = {
+   runAt: "",
+   savedRunAt: "",
+   weekdays: new Set([1, 2, 3, 4, 5]),
++  runMissedOnce: false,
+   projectId: "",
+   threadId: "",
+   savedThreadId: "",
+@@ -1478,6 +1479,8 @@ function ScheduledTaskEditorForm({
+   const offersOnce =
+     environment?.serverConfig?.environment.capabilities.oneTimeSchedules === true ||
+     task?.schedule.type === "once";
++  const offersMissedRun =
++    environment?.serverConfig?.environment.capabilities.missedRunSchedules === true;
+   const offersThreadModes =
+     environment?.serverConfig?.environment.capabilities.scheduledTaskThreadModes === true;
+   const connected =
+@@ -2334,6 +2337,32 @@ function ScheduledTaskEditorForm({
+                 <span className="text-xs text-muted-foreground">minutes</span>
+               </div>
+             )}
++            {draft.scheduleMode === "fixed" && offersMissedRun ? (
++              <div className="flex items-center justify-between gap-4">
++                <div className="min-w-0 space-y-1">
++                  <Label htmlFor="scheduled-task-missed-run">
++                    <T>Run once if missed</T>
++                  </Label>
++                  <p
++                    id="scheduled-task-missed-run-description"
++                    className="text-sm text-muted-foreground"
++                  >
++                    <T>
++                      If T3 Code was off or asleep at that time, run once when it is back instead of
++                      waiting for the next time.
++                    </T>
++                  </p>
++                </div>
++                <Switch
++                  id="scheduled-task-missed-run"
++                  aria-describedby="scheduled-task-missed-run-description"
++                  checked={draft.runMissedOnce}
++                  onCheckedChange={(runMissedOnce) =>
++                    setDraft((current) => ({ ...current, runMissedOnce }))
++                  }
++                />
++              </div>
++            ) : null}
+           </div>
+ 
+           <div className="flex items-center justify-between gap-4">
+diff --git a/apps/web/src/components/settings/scheduledTasksSettings.logic.ts b/apps/web/src/components/settings/scheduledTasksSettings.logic.ts
+index 0651d13ad7..fc6a198e1f 100644
+--- a/apps/web/src/components/settings/scheduledTasksSettings.logic.ts
++++ b/apps/web/src/components/settings/scheduledTasksSettings.logic.ts
+@@ -127,6 +127,8 @@ export interface DraftState {
+   /** The stored ISO run time, sent back unchanged when the field was not edited. */
+   readonly savedRunAt: string;
+   readonly weekdays: ReadonlySet<number>;
++  readonly runMissedOnce: boolean;
++  readonly savedRunMissedOnce?: boolean | undefined;
+   readonly projectId: string;
+   readonly threadId: string;
+   /** The thread the form opened with, so a save can tell a cleared destination from an unbound one. */
+@@ -305,6 +307,9 @@ export function scheduleFromDraft(draft: DraftState): ScheduledTaskUpsertSchedul
+     type: "fixed_time",
+     timeOfDay: draft.timeOfDay,
+     ...(selectedEveryDay ? {} : { weekdays: [...draft.weekdays].toSorted() }),
++    ...(draft.runMissedOnce === draft.savedRunMissedOnce
++      ? {}
++      : { missedRun: draft.runMissedOnce ? ("run_once" as const) : ("skip" as const) }),
+   };
+ }
+ 
+@@ -328,6 +333,9 @@ export function taskToDraft(task: ScheduledTask): DraftState {
+     runAt: schedule.type === "once" ? toDateTimeLocalValue(new Date(schedule.runAt)) : "",
+     savedRunAt: schedule.type === "once" ? schedule.runAt : "",
+     weekdays,
++    runMissedOnce: schedule.type === "fixed_time" && schedule.missedRun === "run_once",
++    savedRunMissedOnce:
++      schedule.type === "fixed_time" ? schedule.missedRun === "run_once" : undefined,
+     projectId: task.projectId,
+     threadId: task.threadId ?? "",
+     savedThreadId: task.threadId ?? "",
+diff --git a/packages/contracts/src/environment.ts b/packages/contracts/src/environment.ts
+index b07eeb04f5..164d268ae7 100644
+--- a/packages/contracts/src/environment.ts
++++ b/packages/contracts/src/environment.ts
+@@ -207,6 +207,8 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
+   triage: Schema.optionalKey(Schema.Boolean),
+   /** Server accepts `{ type: "once" }` scheduled tasks; older servers reject them on save. */
+   oneTimeSchedules: Schema.optionalKey(Schema.Boolean),
++  /** Server honors fixed-time `missedRun`; older servers ignore it and skip missed times. */
++  missedRunSchedules: Schema.optionalKey(Schema.Boolean),
+   /** Server honors `freshContext` on sends; older servers ignore it and keep the old context. */
+   freshContext: Schema.optionalKey(Schema.Boolean),
+   /** Server saves and runs scheduled task `threadMode`; older servers ignore it. */
+diff --git a/packages/contracts/src/orchestratorMcp.ts b/packages/contracts/src/orchestratorMcp.ts
+index 49595364ad..6ccd501458 100644
+--- a/packages/contracts/src/orchestratorMcp.ts
++++ b/packages/contracts/src/orchestratorMcp.ts
+@@ -69,7 +69,7 @@ const OrchestratorMcpSchedule = Schema.Union([
+   OrchestratorMcpScheduleFromJsonString,
+ ]).annotate({
+   description:
+-    "Trigger: {type:'interval',everyMs}, {type:'fixed_time',timeOfDay,weekdays?}, {type:'once',runAt}, or {type:'webhook'}.",
++    "Trigger: {type:'interval',everyMs}, {type:'fixed_time',timeOfDay,weekdays?,missedRun?}, {type:'once',runAt}, or {type:'webhook'}.",
+ });
+ 
+ const OrchestratorMcpTargetOptionsFromRecord = Schema.Record(
+diff --git a/packages/contracts/src/scheduledTask.ts b/packages/contracts/src/scheduledTask.ts
+index ba1f21c19c..3e3ae6f85e 100644
+--- a/packages/contracts/src/scheduledTask.ts
++++ b/packages/contracts/src/scheduledTask.ts
+@@ -43,6 +43,12 @@ const ScheduledTaskFixedTimeSchedule = Schema.Struct({
+       description: "Default: every day.",
+     }),
+   ),
++  missedRun: Schema.optional(
++    Schema.Literals(["skip", "run_once"]).annotate({
++      description:
++        "If the environment was off or asleep at the time. 'skip' (default) waits for the next time; 'run_once' runs once when it is back. Omitted: keep stored.",
++    }),
++  ),
+ });
+ 
+ const ISO_WITH_OFFSET =
