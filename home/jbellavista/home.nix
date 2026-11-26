@@ -1006,7 +1006,7 @@ in
       mariadb
       gnumake
       nautilus
-      nodejs_22
+      nodejs_24  # nexusclips needs node >=24 (its .nvmrc and engines; harness feedback #39)
       obs-studio
       opencode2
       opencode
