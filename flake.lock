@@ -199,7 +199,7 @@
     "opencode2-npm": {
       "flake": false,
       "locked": {
-        "narHash": "sha256-HPmn8OkwDq43Dsg4TL3y0dS1/OIXBetet8GFNT0m1y0=",
+        "narHash": "sha256-/IlXSOirf5vVbtWKnq0AfVNK8a7Df1UQ8mgnUJu7NHg=",
         "type": "file",
         "url": "https://registry.npmjs.org/@opencode/cli-linux-x64/latest"
       },
